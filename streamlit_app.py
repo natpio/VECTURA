@@ -5,7 +5,7 @@ import plotly.express as px
 from datetime import timedelta, datetime
 import time
 
-# 1. KONFIGURACJA UI I SESJI
+# 1. KONFIGURACJA UI I BEZPIECZEŃSTWA
 st.set_page_config(
     page_title="SQM VECTURA | Enterprise Logistics", 
     layout="wide", 
@@ -19,7 +19,6 @@ st.markdown("""
     html, body, [class*="st-"] { font-family: 'Inter', sans-serif; }
     .stApp { background: #f1f5f9; }
     
-    /* Karta Pojazdu */
     .vehicle-card {
         background: white;
         border-radius: 20px;
@@ -31,7 +30,6 @@ st.markdown("""
     }
     .vehicle-title { font-size: 34px !important; font-weight: 800 !important; color: #1e293b; letter-spacing: -1px; }
     
-    /* Status Badges */
     .status-badge {
         padding: 10px 20px;
         border-radius: 12px;
@@ -41,7 +39,6 @@ st.markdown("""
         margin-left: 20px;
     }
     
-    /* Notatki i Informacje dodatkowe */
     .note-box {
         background: #fffbeb;
         padding: 15px 20px;
@@ -58,10 +55,19 @@ st.markdown("""
         font-size: 14px;
         color: #64748b;
     }
+    .login-container {
+        max-width: 450px;
+        margin: 100px auto;
+        background: white;
+        padding: 50px;
+        border-radius: 24px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+        text-align: center;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- LOGIKA DOSTĘPU (30 DNI) ---
+# --- LOGIKA HASŁA (VECTURAsqm2026) I SESJI (30 DNI) ---
 def check_password():
     def password_entered():
         if st.session_state["password"] == "VECTURAsqm2026":
@@ -71,13 +77,20 @@ def check_password():
         else:
             st.session_state["password_correct"] = False
 
+    # Sprawdzenie ważności sesji
     if "session_expiry" in st.session_state:
         if datetime.now().timestamp() < st.session_state["session_expiry"]:
             return True
 
+    # Ekran logowania
     if "password_correct" not in st.session_state or not st.session_state["password_correct"]:
-        st.title("SQM Logistics 🔐")
-        st.text_input("Hasło dostępu:", type="password", on_change=password_entered, key="password")
+        st.markdown('<div class="login-container">', unsafe_allow_html=True)
+        st.image("https://sqm.eu/wp-content/uploads/2021/03/sqm_logo_black.png", width=150) # Przykładowe logo
+        st.markdown("### Logistics Intelligence System")
+        st.text_input("Hasło dostępowe:", type="password", on_change=password_entered, key="password")
+        if "password_correct" in st.session_state and not st.session_state["password_correct"]:
+            st.error("❌ Błędne hasło")
+        st.markdown('</div>', unsafe_allow_html=True)
         return False
     return True
 
@@ -90,15 +103,13 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 def load_data():
     try:
         df = conn.read(worksheet="VECTURA", ttl=0)
-        # Usuwamy puste wiersze
         return df.dropna(subset=['Nazwa Targów', 'Dane Auta'], how='all')
     except:
         return pd.DataFrame()
 
 df = load_data()
 
-# --- MAPOWANIE ETAPÓW (Zgodnie z Twoimi nagłówkami) ---
-# Uwaga: Nagłówki w kodzie muszą być identyczne z tymi w Google Sheets
+# --- MAPOWANIE ETAPÓW (Nagłówki 1:1 z arkuszem) ---
 STAGES = [
     ("1. Załadunek", "Data Załadunku", "Trasa Start", "#3b82f6"),
     ("2. Trasa", "Trasa Start", "Rozładunek Montaż", "#6366f1"),
@@ -112,7 +123,6 @@ STAGES = [
     ("10. Rozładunek SQM", "Rozładunek Powrotny", "Rozładunek Powrotny", "#22c55e")
 ]
 
-# Konwersja na format daty
 if not df.empty:
     for s in STAGES:
         if s[1] in df.columns: df[s[1]] = pd.to_datetime(df[s[1]], errors='coerce')
@@ -130,6 +140,18 @@ def get_status(row):
 
 if not df.empty:
     df['Status Operacyjny'] = df.apply(get_status, axis=1)
+
+# --- PANEL BOCZNY ---
+with st.sidebar:
+    st.image("https://sqm.eu/wp-content/uploads/2021/03/sqm_logo_black.png", width=120)
+    st.divider()
+    if st.button("🔄 SYNCHRONIZUJ"):
+        st.cache_data.clear()
+        st.rerun()
+    if st.button("🔓 WYLOGUJ"):
+        st.session_state["password_correct"] = False
+        st.session_state["session_expiry"] = 0
+        st.rerun()
 
 # --- INTERFEJS GŁÓWNY ---
 st.title("SQM Logistics Control Tower")
@@ -169,7 +191,8 @@ with tabs[0]:
             
             if gantt_df:
                 fig = px.timeline(pd.DataFrame(gantt_df), x_start="Start", x_end="Finish", y="Projekt", color="Etap", template="plotly_white", color_discrete_map={s[0]: s[3] for s in STAGES})
-                fig.add_vline(x=datetime.now().timestamp() * 1000, line_dash="dash", line_color="red")
+                fig.add_vline(x=datetime.now().timestamp() * 1000, line_dash="dash", line_color="red", annotation_text="DZIŚ")
+                fig.update_xaxes(dtick="D1", tickformat="%d.%m", side="top")
                 fig.update_layout(height=250, margin=dict(t=30, b=0), showlegend=True)
                 st.plotly_chart(fig, use_container_width=True)
 
@@ -186,9 +209,10 @@ with tabs[1]:
         ki = c5.text_input("Kierowca")
         te = c6.text_input("Telefon")
         
-        no = st.text_area("Notatka")
+        no = st.text_area("Notatka (sloty, kontakty, uwagi)")
         
         st.divider()
+        st.write("🗓️ **Plan Operacyjny**")
         col1, col2, col3, col4 = st.columns(4)
         d1 = col1.date_input("Data Załadunku")
         d2 = col2.date_input("Trasa Start")
@@ -210,13 +234,13 @@ with tabs[1]:
                 }])
                 combined = pd.concat([df.drop(columns=['Status Operacyjny'], errors='ignore'), new_data], ignore_index=True)
                 conn.update(worksheet="VECTURA", data=combined)
-                st.success("Zapisano!"); time.sleep(1); st.rerun()
+                st.success("Zlecenie dodane pomyślnie!"); time.sleep(1); st.rerun()
 
 # --- TAB 3: EDYCJA ---
 with tabs[2]:
     if not df.empty:
         df['key'] = df['Nazwa Targów'] + " | " + df['Dane Auta']
-        sel = st.selectbox("Wybierz transport:", df['key'].unique())
+        sel = st.selectbox("Wybierz zlecenie do edycji:", df['key'].unique())
         idx = df[df['key'] == sel].index[0]
         r = df.loc[idx]
         
@@ -246,19 +270,19 @@ with tabs[2]:
             ed6 = ce6.date_input("Odbiór Pełnych", d_val(r['Odbiór Pełnych']))
             ed7 = ce7.date_input("Rozładunek Powrotny", d_val(r['Rozładunek Powrotny']))
 
-            if st.form_submit_button("ZAPISZ ZMIANY"):
+            if st.form_submit_button("ZAKTUALIZUJ"):
                 df.loc[idx, ['Nazwa Targów', 'Logistyk', 'Kwota', 'Dane Auta', 'Kierowca', 'Telefon', 'Notatka']] = [e_nt, e_lg, e_kw, e_da, e_ki, e_te, e_no]
                 dates = {"Data Załadunku": ed1, "Trasa Start": ed2, "Rozładunek Montaż": ed3, "Postój": ed3, "Wjazd po Empties": ed4, "Postój z Empties": ed4, "Dostawa Empties": ed5, "Odbiór Pełnych": ed6, "Trasa Powrót": ed6, "Rozładunek Powrotny": ed7}
                 for k, v in dates.items(): df.loc[idx, k] = pd.to_datetime(v)
                 
                 conn.update(worksheet="VECTURA", data=df.drop(columns=['Status Operacyjny', 'key'], errors='ignore'))
-                st.success("Zaktualizowano."); time.sleep(1); st.rerun()
+                st.success("Dane zaktualizowane!"); time.sleep(1); st.rerun()
 
 # --- TAB 4 I 5 ---
 with tabs[3]: st.dataframe(df.drop(columns=['key', 'Status Operacyjny'], errors='ignore'), use_container_width=True)
 with tabs[4]:
     if not df.empty:
-        target = st.selectbox("Usuń zlecenie:", df['key'].unique())
-        if st.button("USUŃ DEFINITYWNIE"):
+        target = st.selectbox("Wybierz do usunięcia:", df['key'].unique())
+        if st.button("USUŃ Z BAZY"):
             conn.update(worksheet="VECTURA", data=df[df['key'] != target].drop(columns=['Status Operacyjny', 'key'], errors='ignore'))
             st.rerun()

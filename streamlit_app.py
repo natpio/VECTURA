@@ -93,7 +93,7 @@ def load_data():
 
 df = load_data()
 
-# Definicja etapów
+# Definicja etapów (STAGES)
 STAGES = [
     ("1. Załadunek", "Data Załadunku", "Trasa Start", "#3b82f6"),
     ("2. Trasa", "Trasa Start", "Rozładunek Montaż", "#6366f1"),
@@ -165,7 +165,7 @@ with tab1:
                 </div>
             """, unsafe_allow_html=True)
             
-            # WYŚWIETLANIE NOTATKI JEŚLI ISTNIEJE
+            # Notatka pod autem
             if 'Notatka' in latest_row and pd.notnull(latest_row['Notatka']) and latest_row['Notatka'] != "":
                 st.markdown(f"""<div class="note-box"><b>📝 Notatka:</b> {latest_row['Notatka']}</div>""", unsafe_allow_html=True)
             
@@ -202,8 +202,7 @@ with tab2:
             car = st.text_input("Pojazd VECTURA*")
             dri = st.text_input("Kierowca")
         
-        # DODANE POLE NOTATKI
-        note = st.text_area("Notatka (opcjonalnie)", placeholder="Np. Dane dotyczące slotów, kontakt do magazynu, uwagi do załadunku...")
+        note = st.text_area("Notatka (opcjonalnie)")
         
         st.divider()
         cols = st.columns(4)
@@ -230,7 +229,7 @@ with tab2:
                 }])
                 save_df = pd.concat([df.drop(columns=['Status Operacyjny'], errors='ignore'), new_row], ignore_index=True)
                 conn.update(worksheet="VECTURA", data=save_df)
-                st.success("Zapisano pomyślnie.")
+                st.success("Zlecenie zapisane.")
                 st.rerun()
 
 # --- TAB 3 I 4 ---
@@ -239,7 +238,7 @@ with tab3:
 
 with tab4:
     if not df.empty:
-        target = st.selectbox("Usuń zlecenie:", df['Nazwa Targów'] + " | " + df['Dane Auta'])
+        target = st.selectbox("Wybierz do usunięcia:", df['Nazwa Targów'] + " | " + df['Dane Auta'])
         if st.button("USUŃ"):
             new_df = df[~(df['Nazwa Targów'] + " | " + df['Dane Auta'] == target)].drop(columns=['Status Operacyjny'], errors='ignore')
             conn.update(worksheet="VECTURA", data=new_df)

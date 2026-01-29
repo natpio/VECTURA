@@ -3,23 +3,21 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import plotly.express as px
 from datetime import timedelta, datetime
+import time
 
-# 1. KONFIGURACJA SYSTEMU I UI
+# 1. KONFIGURACJA UI I SESJI (30 DNI)
 st.set_page_config(
     page_title="SQM VECTURA | Logistics Control Tower", 
     layout="wide", 
     page_icon="🚚"
 )
 
-# Zaawansowany CSS dla wyglądu klasy Enterprise
+# Stylizacja Enterprise
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
     html, body, [class*="st-"] { font-family: 'Inter', sans-serif; }
-    
     .stApp { background-color: #f8fafc; }
-    
-    /* Karty pojazdów */
     .vehicle-card {
         background: #ffffff;
         border-radius: 12px;
@@ -29,13 +27,7 @@ st.markdown("""
         margin-top: 40px;
         margin-bottom: 10px;
     }
-    
-    .vehicle-title {
-        font-size: 30px !important;
-        font-weight: 800 !important;
-        color: #1e293b;
-    }
-    
+    .vehicle-title { font-size: 30px !important; font-weight: 800 !important; color: #1e293b; }
     .status-badge {
         padding: 6px 14px;
         border-radius: 8px;
@@ -43,19 +35,46 @@ st.markdown("""
         font-weight: 700;
         margin-left: 15px;
     }
-
-    /* Stylizacja przycisków */
-    .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        height: 3em;
-        background-color: #004a99;
-        color: white;
-        font-weight: 600;
-        border: none;
+    .login-box {
+        max-width: 400px;
+        margin: 100px auto;
+        padding: 40px;
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
     }
     </style>
     """, unsafe_allow_html=True)
+
+# --- LOGIKA HASŁA I SESJI (30 DNI) ---
+def check_password():
+    """Zwraca True, jeśli użytkownik wpisał poprawne hasło."""
+    def password_entered():
+        if st.session_state["password"] == "VECTURAsqm2026":
+            st.session_state["password_correct"] = True
+            # Ustawienie daty wygaśnięcia sesji na 30 dni
+            st.session_state["session_expiry"] = (datetime.now() + timedelta(days=30)).timestamp()
+            del st.session_state["password"]
+        else:
+            st.session_state["password_correct"] = False
+
+    # Sprawdzenie czy sesja jeszcze trwa (30 dni)
+    if "session_expiry" in st.session_state:
+        if datetime.now().timestamp() < st.session_state["session_expiry"]:
+            return True
+
+    if "password_correct" not in st.session_state or not st.session_state["password_correct"]:
+        st.markdown('<div class="login-box">', unsafe_allow_html=True)
+        st.title("SQM Logistics 🔐")
+        st.text_input("Podaj hasło dostępowe:", type="password", on_change=password_entered, key="password")
+        if "password_correct" in st.session_state and not st.session_state["password_correct"]:
+            st.error("Błędne hasło. Spróbuj ponownie.")
+        st.markdown('</div>', unsafe_allow_html=True)
+        return False
+    return True
+
+if not check_password():
+    st.stop()
 
 # 2. POŁĄCZENIE Z BAZĄ DANYCH
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -69,7 +88,7 @@ def load_data():
 
 df = load_data()
 
-# Definicja etapów (Nazwy kolumn muszą być zgodne z GSheets)
+# Definicja etapów
 STAGES = [
     ("1. Załadunek", "Data Załadunku", "Trasa Start", "#3b82f6"),
     ("2. Trasa", "Trasa Start", "Rozładunek Montaż", "#6366f1"),
@@ -83,72 +102,51 @@ STAGES = [
     ("10. Rozładunek SQM", "Rozładunek Powrotny", "Rozładunek Powrotny", "#22c55e")
 ]
 
-# Konwersja wszystkich kolumn datowych na format datetime
 if not df.empty:
     for s in STAGES:
         df[s[1]] = pd.to_datetime(df[s[1]], errors='coerce')
         df[s[2]] = pd.to_datetime(df[s[2]], errors='coerce')
 
-# --- FUNKCJA LOGIKI STATUSU LIVE ---
+# Logika statusu Live
 def calculate_live_status(row):
-    # Dzisiejsza data jako Timestamp do porównań
     now = pd.Timestamp(datetime.now().date())
-    
     if pd.isnull(row['Data Załadunku']): return "Brak danych"
-    
-    # 1. Status Zakończony
     if pd.notnull(row['Rozładunek Powrotny']) and row['Rozładunek Powrotny'] < now:
         return "🔵 ZAKOŃCZONY"
-    
-    # 2. Status Oczekujący
     if row['Data Załadunku'] > now:
         return "⚪ OCZEKUJE"
-    
-    # 3. Wyznaczanie konkretnego etapu w realizacji
     for stage_name, start_col, end_col, _ in STAGES:
-        start_val = row[start_col]
-        end_val = row[end_col]
-        
-        if pd.notnull(start_val) and pd.notnull(end_val):
-            # Jeśli dzisiaj mieści się w widłach czasowych etapu
-            if start_val <= now <= end_val:
+        if pd.notnull(row[start_col]) and pd.notnull(row[end_col]):
+            if row[start_col] <= now <= row[end_col]:
                 return f"🟢 W REALIZACJI: {stage_name}"
-            
-    return "🟢 W REALIZACJI (Trasa/Postój)"
+    return "🟢 W REALIZACJI"
 
 if not df.empty:
     df['Status Operacyjny'] = df.apply(calculate_live_status, axis=1)
 
-# 3. SIDEBAR BRANDING
+# 3. SIDEBAR
 with st.sidebar:
     st.markdown("<h1 style='color: white;'>SQM</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color: #94a3b8; margin-top:-20px;'>Control Tower</p>", unsafe_allow_html=True)
     st.divider()
-    if st.button("🔄 ODŚWIEŻ STATUSY FLOTY"):
+    if st.button("🔄 ODŚWIEŻ STATUSY"):
         st.cache_data.clear()
         st.rerun()
-    st.divider()
-    st.info("Zleceniobiorca: **VECTURA**")
+    if st.button("🔓 WYLOGUJ"):
+        st.session_state["password_correct"] = False
+        st.session_state["session_expiry"] = 0
+        st.rerun()
 
 # 4. DASHBOARD GŁÓWNY
-st.title("System Operacyjny Logistyki")
-st.markdown(f"Aktualna data systemowa: **{datetime.now().strftime('%d.%m.%Y')}**")
+st.title("Aktualne zlecenia")
+st.markdown(f"Data systemowa: **{datetime.now().strftime('%d.%m.%Y')}**")
 
-tab1, tab2, tab3, tab4 = st.tabs([
-    "📍 LIVE TRACKING", 
-    "➕ NOWE ZLECENIE", 
-    "📋 REJESTR DANYCH", 
-    "🗑️ USUWANIE"
-])
+tab1, tab2, tab3, tab4 = st.tabs(["📍 LIVE TRACKING", "➕ NOWE ZLECENIE", "📋 REJESTR", "🗑️ USUWANIE"])
 
-# --- TAB 1: LIVE TRACKING (GANTT + STATUSY) ---
+# --- TAB 1: TRACKING ---
 with tab1:
     if not df.empty:
-        # Grupowanie po pojazdach
         for vehicle in df['Dane Auta'].unique():
             v_data = df[df['Dane Auta'] == vehicle]
-            
-            # Pobierz status najnowszego (ostatniego dodanego) projektu dla tego auta
             current_status = v_data.iloc[-1]['Status Operacyjny']
             
             st.markdown(f"""
@@ -166,45 +164,35 @@ with tab1:
                 for stage_label, start_col, end_col, color in STAGES:
                     s, e = row[start_col], row[end_col]
                     if pd.notnull(s) and pd.notnull(e):
-                        # Zapewnienie widoczności słupka (min. 1 dzień)
                         finish = e + timedelta(days=1) if s == e else e
                         gantt_list.append({
-                            "Projekt": row['Nazwa Targów'],
-                            "Start": s, "Finish": finish, "Etap": stage_label, "Kolor": color
+                            "Projekt": row['Nazwa Targów'], "Start": s, "Finish": finish, 
+                            "Etap": stage_label, "Kolor": color
                         })
             
             if gantt_list:
                 fig = px.timeline(
                     pd.DataFrame(gantt_list), x_start="Start", x_end="Finish", y="Projekt", 
-                    color="Etap", template="plotly_white",
-                    color_discrete_map={s[0]: s[3] for s in STAGES}
+                    color="Etap", template="plotly_white", color_discrete_map={s[0]: s[3] for s in STAGES}
                 )
-                
-                # Dodanie czerwonej linii DZISIAJ
-                fig.add_vline(x=datetime.now().timestamp() * 1000, line_dash="dash", line_color="#ef4444", 
-                             annotation_text="DZISIAJ", annotation_position="top right")
-                
+                fig.add_vline(x=datetime.now().timestamp() * 1000, line_dash="dash", line_color="#ef4444", annotation_text="DZISIAJ")
                 fig.update_xaxes(dtick="D1", tickformat="%d.%m", side="top", gridcolor='#e2e8f0')
                 fig.update_yaxes(tickfont=dict(size=14, family="Arial Black"))
                 fig.update_layout(height=280, margin=dict(t=50, b=10), showlegend=True)
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-    else:
-        st.info("Brak aktywnych transportów w systemie.")
+                st.plotly_chart(fig, use_container_width=True)
 
 # --- TAB 2: NOWE ZLECENIE ---
 with tab2:
     with st.form("tms_form_final"):
-        st.markdown("### 📋 Formularz Zlecenia SQM -> VECTURA")
         c1, c2 = st.columns(2)
         with c1:
-            ev = st.text_input("Nazwa Projektu (Targi)*")
+            ev = st.text_input("Nazwa Projektu*")
             log = st.text_input("Logistyk SQM*")
         with c2:
-            car = st.text_input("Pojazd VECTURA (Nr rej)*")
+            car = st.text_input("Pojazd VECTURA*")
             dri = st.text_input("Kierowca")
         
         st.divider()
-        st.write("🗓️ **Plan operacyjny:**")
         cols = st.columns(4)
         d = {
             "Data Załadunku": cols[0].date_input("1. Załadunek"),
@@ -217,9 +205,8 @@ with tab2:
         d["Odbiór Pełnych"] = cols2[1].date_input("6. Odbiór Pełnych")
         d["Rozładunek Powrotny"] = cols2[2].date_input("7. Rozładunek SQM")
 
-        if st.form_submit_button("ZATWIERDŹ I ROZPOCZNIJ ŚLEDZENIE"):
+        if st.form_submit_button("ZATWIERDŹ"):
             if ev and car and log:
-                # Automatyzacja etapów pośrednich (Postój / Trasa Powrót)
                 new_row = pd.DataFrame([{
                     "Nazwa Targów": ev, "Logistyk": log, "Dane Auta": car, "Kierowca": dri,
                     "Data Załadunku": d["Data Załadunku"], "Trasa Start": d["Trasa Start"],
@@ -228,23 +215,19 @@ with tab2:
                     "Dostawa Empties": d["Dostawa Empties"], "Odbiór Case": d["Odbiór Pełnych"],
                     "Trasa Powrót": d["Odbiór Pełnych"], "Rozładunek Powrotny": d["Rozładunek Powrotny"]
                 }])
-                # Usunięcie kolumny statusu przed zapisem (bo jest wyliczana na żywo)
                 save_df = pd.concat([df.drop(columns=['Status Operacyjny'], errors='ignore'), new_row], ignore_index=True)
                 conn.update(worksheet="VECTURA", data=save_df)
-                st.success("Zlecenie zapisane pomyślnie!")
+                st.success("Zapisano.")
                 st.rerun()
 
-# --- TAB 3: BAZA DANYCH ---
+# --- TAB 3 I 4 ---
 with tab3:
-    st.markdown("### 🔍 Pełna baza transportowa")
     st.dataframe(df, use_container_width=True)
 
-# --- TAB 4: USUWANIE ---
 with tab4:
     if not df.empty:
-        target = st.selectbox("Wybierz transport do trwałego usunięcia:", df['Nazwa Targów'] + " | " + df['Dane Auta'])
-        if st.button("🚨 POTWIERDŹ USUNIĘCIE"):
-            new_df = df[~(df['Nazwa Targów'] + " | " + df['Dane Auta'] == target)]
-            new_df = new_df.drop(columns=['Status Operacyjny'], errors='ignore')
+        target = st.selectbox("Usuń zlecenie:", df['Nazwa Targów'] + " | " + df['Dane Auta'])
+        if st.button("USUŃ"):
+            new_df = df[~(df['Nazwa Targów'] + " | " + df['Dane Auta'] == target)].drop(columns=['Status Operacyjny'], errors='ignore')
             conn.update(worksheet="VECTURA", data=new_df)
             st.rerun()

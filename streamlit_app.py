@@ -3,9 +3,8 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import plotly.express as px
 from datetime import timedelta, datetime
-import time
 
-# 1. KONFIGURACJA UI I SESJI (30 DNI)
+# 1. KONFIGURACJA UI I SESJI
 st.set_page_config(
     page_title="SQM VECTURA | Logistics Control Tower", 
     layout="wide", 
@@ -25,7 +24,7 @@ st.markdown("""
         border-left: 12px solid #004a99;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         margin-top: 40px;
-        margin-bottom: 10px;
+        margin-bottom: 5px;
     }
     .vehicle-title { font-size: 30px !important; font-weight: 800 !important; color: #1e293b; }
     .status-badge {
@@ -34,6 +33,15 @@ st.markdown("""
         font-size: 14px;
         font-weight: 700;
         margin-left: 15px;
+    }
+    .note-box {
+        background-color: #fff9db;
+        padding: 10px 15px;
+        border-radius: 8px;
+        border-left: 5px solid #fcc419;
+        margin-bottom: 20px;
+        font-size: 14px;
+        color: #444;
     }
     .login-box {
         max-width: 400px;
@@ -48,17 +56,14 @@ st.markdown("""
 
 # --- LOGIKA HASŁA I SESJI (30 DNI) ---
 def check_password():
-    """Zwraca True, jeśli użytkownik wpisał poprawne hasło."""
     def password_entered():
         if st.session_state["password"] == "VECTURAsqm2026":
             st.session_state["password_correct"] = True
-            # Ustawienie daty wygaśnięcia sesji na 30 dni
             st.session_state["session_expiry"] = (datetime.now() + timedelta(days=30)).timestamp()
             del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
 
-    # Sprawdzenie czy sesja jeszcze trwa (30 dni)
     if "session_expiry" in st.session_state:
         if datetime.now().timestamp() < st.session_state["session_expiry"]:
             return True
@@ -147,7 +152,8 @@ with tab1:
     if not df.empty:
         for vehicle in df['Dane Auta'].unique():
             v_data = df[df['Dane Auta'] == vehicle]
-            current_status = v_data.iloc[-1]['Status Operacyjny']
+            latest_row = v_data.iloc[-1]
+            current_status = latest_row['Status Operacyjny']
             
             st.markdown(f"""
                 <div class="vehicle-card">
@@ -158,6 +164,10 @@ with tab1:
                     </span>
                 </div>
             """, unsafe_allow_html=True)
+            
+            # WYŚWIETLANIE NOTATKI JEŚLI ISTNIEJE
+            if 'Notatka' in latest_row and pd.notnull(latest_row['Notatka']) and latest_row['Notatka'] != "":
+                st.markdown(f"""<div class="note-box"><b>📝 Notatka:</b> {latest_row['Notatka']}</div>""", unsafe_allow_html=True)
             
             gantt_list = []
             for _, row in v_data.iterrows():
@@ -192,6 +202,9 @@ with tab2:
             car = st.text_input("Pojazd VECTURA*")
             dri = st.text_input("Kierowca")
         
+        # DODANE POLE NOTATKI
+        note = st.text_area("Notatka (opcjonalnie)", placeholder="Np. Dane dotyczące slotów, kontakt do magazynu, uwagi do załadunku...")
+        
         st.divider()
         cols = st.columns(4)
         d = {
@@ -208,7 +221,7 @@ with tab2:
         if st.form_submit_button("ZATWIERDŹ"):
             if ev and car and log:
                 new_row = pd.DataFrame([{
-                    "Nazwa Targów": ev, "Logistyk": log, "Dane Auta": car, "Kierowca": dri,
+                    "Nazwa Targów": ev, "Logistyk": log, "Dane Auta": car, "Kierowca": dri, "Notatka": note,
                     "Data Załadunku": d["Data Załadunku"], "Trasa Start": d["Trasa Start"],
                     "Rozładunek Montaż": d["Rozładunek Montaż"], "Postój": d["Rozładunek Montaż"],
                     "Wjazd Empties": d["Wjazd po Empties"], "Postój Empties": d["Wjazd po Empties"],
@@ -217,7 +230,7 @@ with tab2:
                 }])
                 save_df = pd.concat([df.drop(columns=['Status Operacyjny'], errors='ignore'), new_row], ignore_index=True)
                 conn.update(worksheet="VECTURA", data=save_df)
-                st.success("Zapisano.")
+                st.success("Zapisano pomyślnie.")
                 st.rerun()
 
 # --- TAB 3 I 4 ---

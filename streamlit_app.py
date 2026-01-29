@@ -4,127 +4,112 @@ import pandas as pd
 import plotly.express as px
 from datetime import timedelta
 
+# Konfiguracja SQM
 st.set_page_config(page_title="SQM VECTURA Logistics", layout="wide")
-
 st.title("🚚 SQM VECTURA - Zarządzanie Transportem")
 
-# Połączenie
+# Inicjalizacja połączenia
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-def load_data():
+def get_clean_data():
     try:
-        # Próba odczytu z arkusza VECTURA
-        df = conn.read(worksheet="VECTURA", ttl=0)
+        # Próba pobrania danych
+        df = conn.read(ttl=0)
         return df
     except Exception as e:
-        st.error(f"Nie można odczytać arkusza VECTURA. Sprawdź Secrets. Błąd: {e}")
+        st.error(f"Nie można odczytać arkusza VECTURA. Sprawdź czy link w Secrets jest poprawny. Błąd: {e}")
         return pd.DataFrame()
 
-df = load_data()
+df = get_clean_data()
 
-# Definicja wszystkich etapów zgodnie z procesem SQM
-STAGES_CONFIG = [
-    ("1. Załadunek", "Data Załadunku", "Trasa Start"),
-    ("2. Trasa", "Trasa Start", "Rozładunek Montaż"),
-    ("3. Montaż", "Rozładunek Montaż", "Postój"),
-    ("4. Postój", "Postój", "Wjazd Empties"),
-    ("5. Empties In", "Wjazd Empties", "Postój Empties"),
-    ("6. Postój Empties", "Postój Empties", "Dostawa Empties"),
-    ("7. Dostawa Empties", "Dostawa Empties", "Odbiór Case"),
-    ("8. Odbiór Case", "Odbiór Case", "Trasa Powrót"),
-    ("9. Powrót", "Trasa Powrót", "Rozładunek Powrotny")
+# Nagłówki wymagane w arkuszu
+REQUIRED_COLS = [
+    "Nazwa Targów", "Logistyk", "Kwota", "Dane Auta", "Kierowca", "Telefon",
+    "Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Postój",
+    "Wjazd Empties", "Postój Empties", "Dostawa Empties", "Odbiór Case",
+    "Trasa Powrót", "Rozładunek Powrotny"
 ]
 
+# Przetwarzanie danych
 if not df.empty:
-    # Czyszczenie i konwersja dat
+    # Czyścimy puste rekordy
     df = df.dropna(subset=['Nazwa Targów', 'Dane Auta'], how='all')
-    for _, start_col, end_col in STAGES_CONFIG:
-        if start_col in df.columns:
-            df[start_col] = pd.to_datetime(df[start_col], errors='coerce').dt.date
-        if end_col in df.columns:
-            df[end_col] = pd.to_datetime(df[end_col], errors='coerce').dt.date
+    
+    # Konwersja kolumn dat na format daty
+    date_cols = REQUIRED_COLS[6:] # Wszystkie od 'Data Załadunku' wzwyż
+    for col in date_cols:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
 
+# Zakładki
 tab1, tab2 = st.tabs(["📊 Wykres Gantta", "➕ Dodaj Nowy Transport"])
 
 with tab1:
     if not df.empty:
         gantt_list = []
         for _, row in df.iterrows():
-            for stage_name, start_col, end_col in STAGES_CONFIG:
-                if start_col in df.columns and end_col in df.columns:
-                    start_val = row[start_col]
-                    end_val = row[end_col]
-                    if pd.notnull(start_val) and pd.notnull(end_val):
-                        # Zabezpieczenie przed datami jednodniowymi (koniec musi być > start dla plotly)
-                        if start_val == end_val:
-                            end_val = end_val + timedelta(days=1)
-                        
-                        gantt_list.append({
-                            "Auto": f"{row['Dane Auta']} | {row['Nazwa Targów']}",
-                            "Start": start_val,
-                            "Finish": end_val,
-                            "Etap": stage_name
-                        })
+            # Sprawdzamy czy mamy datę startu i końca trasy do wykresu
+            if pd.notnull(row.get('Data Załadunku')) and pd.notnull(row.get('Rozładunek Powrotny')):
+                gantt_list.append({
+                    "Auto": f"{row['Dane Auta']} | {row['Nazwa Targów']}",
+                    "Start": row['Data Załadunku'],
+                    "Finish": row['Rozładunek Powrotny'],
+                    "Logistyk": row.get('Logistyk', '')
+                })
         
         if gantt_list:
-            fig = px.timeline(
-                pd.DataFrame(gantt_list), 
-                x_start="Start", 
-                x_end="Finish", 
-                y="Auto", 
-                color="Etap",
-                title="Pełny Harmonogram Procesu Transportowego"
-            )
+            fig = px.timeline(pd.DataFrame(gantt_list), x_start="Start", x_end="Finish", y="Auto", color="Auto")
             fig.update_yaxes(autorange="reversed")
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("Dodaj transport z datami, aby zobaczyć wykres.")
+            st.info("Brak wystarczających dat w arkuszu, aby narysować wykres.")
 
 with tab2:
-    with st.form("main_form"):
+    with st.form("form_sqm"):
+        st.subheader("Dane podstawowe")
         c1, c2 = st.columns(2)
         with c1:
-            ev_name = st.text_input("Nazwa Targów*")
-            log_name = st.text_input("Logistyk")
-            price = st.number_input("Kwota (PLN/EUR)", min_value=0)
+            t_name = st.text_input("Nazwa Targów*")
+            t_log = st.text_input("Logistyk")
+            t_val = st.number_input("Kwota", min_value=0)
         with c2:
-            car_id = st.text_input("Dane Auta (Nr rej)*")
-            driver_name = st.text_input("Kierowca")
-            driver_tel = st.text_input("Telefon")
+            t_car = st.text_input("Dane Auta*")
+            t_driver = st.text_input("Kierowca")
+            t_tel = st.text_input("Telefon")
         
-        st.write("### Daty etapów")
+        st.markdown("---")
+        st.subheader("Harmonogram")
+        # Pola dla wszystkich 10 etapów
         d = {}
-        # Tworzymy 10 pól daty
-        date_cols = st.columns(5)
-        d['d1'] = date_cols[0].date_input("1. Załadunek")
-        d['d2'] = date_cols[1].date_input("2. Trasa Start")
-        d['d3'] = date_cols[2].date_input("3. Montaż")
-        d['d4'] = date_cols[3].date_input("4. Postój")
-        d['d5'] = date_cols[4].date_input("5. Wjazd Empties")
+        cols = st.columns(5)
+        d[0] = cols[0].date_input("1. Załadunek")
+        d[1] = cols[1].date_input("2. Trasa Start")
+        d[2] = cols[2].date_input("3. Montaż")
+        d[3] = cols[3].date_input("4. Postój")
+        d[4] = cols[4].date_input("5. Wjazd Empties")
         
-        date_cols2 = st.columns(5)
-        d['d6'] = date_cols2[0].date_input("6. Postój Empties")
-        d['d7'] = date_cols2[1].date_input("7. Dostawa Empties")
-        d['d8'] = date_cols2[2].date_input("8. Odbiór Case")
-        d['d9'] = date_cols2[3].date_input("9. Trasa Powrót")
-        d['d10'] = date_cols2[4].date_input("10. Rozładunek Powrotny")
+        cols2 = st.columns(5)
+        d[5] = cols2[0].date_input("6. Postój Empties")
+        d[6] = cols2[1].date_input("7. Dostawa Empties")
+        d[7] = cols2[2].date_input("8. Odbiór Case")
+        d[8] = cols2[3].date_input("9. Trasa Powrót")
+        d[9] = cols2[4].date_input("10. Rozładunek Powrotny")
 
-        if st.form_submit_button("Zapisz Transport"):
-            if ev_name and car_id:
+        if st.form_submit_button("Zapisz do bazy"):
+            if t_name and t_car:
                 new_row = pd.DataFrame([{
-                    "Nazwa Targów": ev_name, "Logistyk": log_name, "Kwota": price,
-                    "Dane Auta": car_id, "Kierowca": driver_name, "Telefon": driver_tel,
-                    "Data Załadunku": d['d1'], "Trasa Start": d['d2'], "Rozładunek Montaż": d['d3'],
-                    "Postój": d['d4'], "Wjazd Empties": d['d5'], "Postój Empties": d['d6'],
-                    "Dostawa Empties": d['d7'], "Odbiór Case": d['d8'], "Trasa Powrót": d['d9'],
-                    "Rozładunek Powrotny": d['d10']
+                    "Nazwa Targów": t_name, "Logistyk": t_log, "Kwota": t_val,
+                    "Dane Auta": t_car, "Kierowca": t_driver, "Telefon": t_tel,
+                    "Data Załadunku": d[0], "Trasa Start": d[1], "Rozładunek Montaż": d[2],
+                    "Postój": d[3], "Wjazd Empties": d[4], "Postój Empties": d[5],
+                    "Dostawa Empties": d[6], "Odbiór Case": d[7], "Trasa Powrót": d[8],
+                    "Rozładunek Powrotny": d[9]
                 }])
+                
                 updated_df = pd.concat([df, new_row], ignore_index=True)
-                conn.update(worksheet="VECTURA", data=updated_df)
-                st.success("Zapisano pomyślnie!")
+                conn.update(data=updated_df)
+                st.success("Zapisano! Przełącz na wykres lub odśwież stronę.")
                 st.rerun()
-            else:
-                st.error("Uzupełnij pola oznaczone gwiazdką (*)")
 
-st.subheader("Podgląd Tabeli VECTURA")
+st.subheader("Podgląd arkusza VECTURA")
 st.dataframe(df)

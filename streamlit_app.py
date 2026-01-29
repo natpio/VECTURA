@@ -13,12 +13,11 @@ st.set_page_config(
 
 st.title("🚚 SQM VECTURA - Zarządzanie Transportem")
 
-# 2. POŁĄCZENIE Z ARKUSZEM (Używa Service Account z Secrets)
+# 2. POŁĄCZENIE Z ARKUSZEM
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data():
     try:
-        # Odczyt danych z zakładki VECTURA
         df = conn.read(worksheet="VECTURA", ttl=0)
         return df
     except Exception as e:
@@ -27,7 +26,7 @@ def load_data():
 
 df = load_data()
 
-# 3. DEFINICJA ETAPÓW LOGISTYCZNYCH (Nazwa, Kolumna Start, Kolumna Koniec)
+# 3. DEFINICJA ETAPÓW (Używane do wykresu i tabeli)
 STAGES = [
     ("1. Załadunek", "Data Załadunku", "Trasa Start"),
     ("2. Trasa", "Trasa Start", "Rozładunek Montaż"),
@@ -41,10 +40,8 @@ STAGES = [
     ("10. Rozładunek", "Rozładunek Powrotny", "Rozładunek Powrotny")
 ]
 
-# Przetwarzanie dat do tabeli i wykresu
 if not df.empty:
     df = df.dropna(subset=['Nazwa Targów', 'Dane Auta'], how='all')
-    # Pobranie wszystkich nazw kolumn datowych z definicji STAGES
     date_cols = list(set([s[1] for s in STAGES] + [s[2] for s in STAGES]))
     for col in date_cols:
         if col in df.columns:
@@ -62,7 +59,6 @@ with tab1:
             for stage_name, start_col, end_col in STAGES:
                 s, e = row.get(start_col), row.get(end_col)
                 if pd.notnull(s) and pd.notnull(e):
-                    # Zabezpieczenie dla Plotly: koniec musi być późniejszy niż start
                     finish = e + timedelta(days=1) if s == e else e
                     gantt_list.append({
                         "Pojazd | Projekt": f"{row['Dane Auta']} | {row['Nazwa Targów']}",
@@ -79,19 +75,16 @@ with tab1:
                 x_end="Finish", 
                 y="Pojazd | Projekt", 
                 color="Etap", 
-                template="plotly_dark",
-                hover_data=["Logistyk"]
+                template="plotly_dark"
             )
             fig.update_yaxes(autorange="reversed")
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("Brak wystarczających danych datowych do wygenerowania wykresu.")
-    else:
-        st.warning("Arkusz VECTURA jest obecnie pusty.")
+            st.info("Brak danych do wykresu.")
 
-# --- TAB 2: DODAWANIE TRANSPORTU (Z OPISAMI ETAPÓW) ---
+# --- TAB 2: DODAWANIE TRANSPORTU (ZAUTOMATYZOWANY POSTÓJ) ---
 with tab2:
-    with st.form("form_vectura_v2", clear_on_submit=True):
+    with st.form("form_vectura_v3", clear_on_submit=True):
         st.subheader("Dane podstawowe zlecenia")
         col_a, col_b = st.columns(2)
         with col_a:
@@ -105,33 +98,33 @@ with tab2:
         
         st.divider()
         st.subheader("Harmonogram szczegółowy")
-        st.write("Podaj daty graniczne dla poszczególnych faz transportu:")
+        st.info("💡 Data zakończenia montażu automatycznie ustawia początek postoju.")
         
-        # Słownik na daty
         d = {}
-        
-        # Wyświetlanie etapów z ich faktycznymi nazwami zamiast "Krok X"
-        # Układ: 5 kolumn w dwóch rzędach
-        r1 = st.columns(5)
+        # Układ 3x3 dla lepszej czytelności przy 9 polach wyboru
+        r1 = st.columns(3)
         d["Data Załadunku"] = r1[0].date_input("1. Załadunek", value=datetime.now())
         d["Trasa Start"] = r1[1].date_input("2. Wyjazd w trasę", value=datetime.now())
         d["Rozładunek Montaż"] = r1[2].date_input("3. Rozładunek/Montaż", value=datetime.now())
-        d["Postój"] = r1[3].date_input("4. Początek postoju", value=datetime.now())
-        d["Wjazd Empties"] = r1[4].date_input("5. Wjazd po Empties", value=datetime.now())
         
-        r2 = st.columns(5)
-        d["Postój Empties"] = r2[0].date_input("6. Postój z Empties", value=datetime.now())
-        d["Dostawa Empties"] = r2[1].date_input("7. Dostawa Empties", value=datetime.now())
-        d["Odbiór Case"] = r2[2].date_input("8. Odbiór pełnych Case", value=datetime.now())
-        d["Trasa Powrót"] = r2[3].date_input("9. Powrót do bazy", value=datetime.now())
-        d["Rozładunek Powrotny"] = r2[4].date_input("10. Rozładunek w SQM", value=datetime.now())
+        # Automatyczne przypisanie: Postój zaczyna się w dniu Rozładunku
+        d["Postój"] = d["Rozładunek Montaż"]
+        
+        r2 = st.columns(3)
+        d["Wjazd Empties"] = r2[0].date_input("4. Wjazd po Empties", value=datetime.now())
+        d["Postój Empties"] = r2[1].date_input("5. Postój z Empties", value=datetime.now())
+        d["Dostawa Empties"] = r2[2].date_input("6. Dostawa Empties", value=datetime.now())
+        
+        r3 = st.columns(3)
+        d["Odbiór Case"] = r3[0].date_input("7. Odbiór pełnych Case", value=datetime.now())
+        d["Trasa Powrót"] = r3[1].date_input("8. Powrót do bazy", value=datetime.now())
+        d["Rozładunek Powrotny"] = r3[2].date_input("9. Rozładunek w SQM", value=datetime.now())
 
         st.markdown("<br>", unsafe_allow_html=True)
         submit = st.form_submit_button("ZATWIERDŹ I ZAPISZ TRANSPORT")
         
         if submit:
             if ev and car and log:
-                # Tworzenie nowego wiersza zgodnie z nagłówkami w Google Sheets
                 new_row = pd.DataFrame([{
                     "Nazwa Targów": ev,
                     "Logistyk": log,
@@ -142,7 +135,7 @@ with tab2:
                     "Data Załadunku": d["Data Załadunku"],
                     "Trasa Start": d["Trasa Start"],
                     "Rozładunek Montaż": d["Rozładunek Montaż"],
-                    "Postój": d["Postój"],
+                    "Postój": d["Postój"], # Ta sama data co Rozładunek Montaż
                     "Wjazd Empties": d["Wjazd Empties"],
                     "Postój Empties": d["Postój Empties"],
                     "Dostawa Empties": d["Dostawa Empties"],
@@ -152,22 +145,16 @@ with tab2:
                 }])
                 
                 try:
-                    # Połączenie starych danych z nowym wierszem i wysyłka
                     updated_df = pd.concat([df, new_row], ignore_index=True)
                     conn.update(worksheet="VECTURA", data=updated_df)
-                    st.success(f"✅ Transport dla {ev} został poprawnie zapisany w arkuszu!")
+                    st.success(f"✅ Zapisano transport dla {ev}. Początek postoju ustawiony na {d['Postój']}.")
                     st.rerun()
                 except Exception as ex:
-                    st.error(f"Błąd zapisu danych: {ex}")
+                    st.error(f"Błąd zapisu: {ex}")
             else:
-                st.warning("Pola oznaczone gwiazdką (*) muszą zostać wypełnione.")
+                st.warning("Uzupełnij wymagane pola (*).")
 
 # --- TAB 3: TABELA DANYCH ---
 with tab3:
     st.subheader("Podgląd bazy danych VECTURA")
-    if not df.empty:
-        st.dataframe(df, use_container_width=True)
-        if st.button("🔄 Odśwież dane z arkusza"):
-            st.rerun()
-    else:
-        st.info("Brak danych do wyświetlenia w tabeli.")
+    st.dataframe(df, use_container_width=True)

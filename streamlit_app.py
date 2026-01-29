@@ -4,20 +4,21 @@ import plotly.express as px
 from datetime import timedelta, datetime
 import time
 
-# Próba importu bibliotek zewnętrznych z obsługą błędów
+# --- PRÓBA IMPORTU BIBLIOTEK ZEWNĘTRZNYCH (Zabezpieczenie przed błędami serwera) ---
 try:
     from streamlit_gsheets import GSheetsConnection
     import folium
     from streamlit_folium import st_folium
 except ModuleNotFoundError:
-    st.error("Błąd: Brak wymaganych bibliotek. Upewnij się, że masz plik requirements.txt z 'folium', 'streamlit-folium' i 'streamlit-gsheets'.")
+    st.error("🚨 **BŁĄD KONFIGURACJI SERWERA: BRAK BIBLIOTEK**")
+    st.info("System nie wykrył bibliotek do map i arkuszy. Upewnij się, że plik **requirements.txt** znajduje się w Twoim repozytorium GitHub i zawiera: streamlit, streamlit-gsheets, pandas, plotly, folium, streamlit-folium.")
     st.stop()
 
-# 1. KONFIGURACJA UI I STYLU
+# --- 1. KONFIGURACJA UI I DESIGNU SQM ---
 st.set_page_config(
     page_title="SQM VECTURA | Logistics Intelligence", 
     layout="wide", 
-    page_icon="🌍"
+    page_icon="🚛"
 )
 
 st.markdown("""
@@ -26,6 +27,7 @@ st.markdown("""
     html, body, [class*="st-"] { font-family: 'Inter', sans-serif; }
     .stApp { background: #f8fafc; }
     
+    /* Karta Zlecenia */
     .project-card {
         background: white;
         border-radius: 16px;
@@ -36,6 +38,7 @@ st.markdown("""
     }
     .project-title { font-size: 26px !important; font-weight: 800 !important; color: #0f172a; }
     
+    /* System Statusów i Finansów */
     .status-badge {
         padding: 6px 14px;
         border-radius: 8px;
@@ -46,7 +49,7 @@ st.markdown("""
     .cost-container {
         display: flex;
         gap: 15px;
-        margin-top: 10px;
+        margin-top: 12px;
     }
     .cost-item {
         background: #f1f5f9;
@@ -59,10 +62,13 @@ st.markdown("""
     .total-cost-badge {
         background: #003366;
         color: white;
-        padding: 6px 15px;
-        border-radius: 8px;
+        padding: 8px 18px;
+        border-radius: 10px;
         font-weight: 700;
+        font-size: 16px;
     }
+    
+    /* Ekran Logowania */
     .login-box {
         max-width: 400px;
         margin: 100px auto;
@@ -75,7 +81,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. SYSTEM HASŁA (VECTURAsqm2026)
+# --- 2. ZABEZPIECZENIE HASŁEM (VECTURAsqm2026) ---
 def check_password():
     def password_entered():
         if st.session_state["password"] == "VECTURAsqm2026":
@@ -92,9 +98,10 @@ def check_password():
     if "password_correct" not in st.session_state or not st.session_state["password_correct"]:
         st.markdown('<div class="login-box">', unsafe_allow_html=True)
         st.markdown("## SQM VECTURA 🔐")
-        st.text_input("Podaj hasło dostępu:", type="password", on_change=password_entered, key="password")
+        st.markdown("System Zarządzania Logistyką")
+        st.text_input("Hasło dostępu:", type="password", on_change=password_entered, key="password")
         if "password_correct" in st.session_state and not st.session_state["password_correct"]:
-            st.error("Nieprawidłowe hasło")
+            st.error("Nieprawidłowe hasło dostępu")
         st.markdown('</div>', unsafe_allow_html=True)
         return False
     return True
@@ -102,7 +109,7 @@ def check_password():
 if not check_password():
     st.stop()
 
-# 3. POŁĄCZENIE Z BAZĄ DANYCH
+# --- 3. POŁĄCZENIE Z GOOGLE SHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data():
@@ -114,7 +121,7 @@ def load_data():
 
 df = load_data()
 
-# HARMONOGRAM
+# DEFINICJA HARMONOGRAMU TARGOWEGO (NAGŁÓWKI 1:1)
 STAGES = [
     ("1. Załadunek", "Data Załadunku", "Trasa Start", "#3b82f6"),
     ("2. Trasa", "Trasa Start", "Rozładunek Montaż", "#6366f1"),
@@ -128,12 +135,13 @@ STAGES = [
     ("10. Rozładunek SQM", "Rozładunek Powrotny", "Rozładunek Powrotny", "#22c55e")
 ]
 
+# PRZETWARZANIE DANYCH FINANSOWYCH I DAT
 if not df.empty:
     for s in STAGES:
         if s[1] in df.columns: df[s[1]] = pd.to_datetime(df[s[1]], errors='coerce')
         if s[2] in df.columns: df[s[2]] = pd.to_datetime(df[s[2]], errors='coerce')
     
-    # Przetwarzanie kosztów
+    # Rozliczenie kosztów dodatkowych
     for col in ['Koszt Eksport', 'Koszt Import', 'Postoje i Parkingi']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
@@ -151,30 +159,36 @@ def get_live_status(row):
     for name, start, end, _ in STAGES:
         if pd.notnull(row.get(start)) and pd.notnull(row.get(end)):
             if row[start] <= now <= row[end]:
-                return f"🟢 W REALIZACJI: {name}"
+                return f"🟢 {name}"
     return "🟢 W REALIZACJI"
 
 if not df.empty:
     df['Status Operacyjny'] = df.apply(get_live_status, axis=1)
 
-# 4. GŁÓWNY INTERFEJS
-st.title("VECTURA Logistics Intelligence")
+# --- 4. GŁÓWNY INTERFEJS APLIKACJI ---
+st.title("SQM VECTURA | Logistics Control Tower")
 
 tabs = st.tabs(["🌍 MAPA FLOTY", "📍 TRACKING LIVE", "➕ NOWE ZLECENIE", "✏️ EDYCJA", "📋 BAZA DANYCH", "🗑️ USUŃ"])
 
-# --- TAB 1: MAPA ---
+# --- TAB 1: MAPA LOGISTYCZNA ---
 with tabs[0]:
-    city_map = {
+    st.subheader("Geolokalizacja aktywnych projektów")
+    
+    # Baza koordynatów dla głównych centrów targowych Europy
+    city_coords = {
         "Barcelona": [41.3851, 2.1734], "Berlin": [52.5200, 13.4050], "Dusseldorf": [51.2277, 6.7735],
         "Poznań": [52.4064, 16.9252], "Amsterdam": [52.3676, 4.9041], "Frankfurt": [50.1109, 8.6821],
-        "Monachium": [48.1351, 11.5820], "Paryż": [48.8566, 2.3522], "Mediolan": [45.4642, 9.1900]
+        "Monachium": [48.1351, 11.5820], "Paryż": [48.8566, 2.3522], "Mediolan": [45.4642, 9.1900],
+        "Hannover": [52.3759, 9.7320], "Genewa": [46.2044, 6.1432], "Madryt": [40.4168, -3.7038]
     }
 
     m = folium.Map(location=[50.0, 10.0], zoom_start=4, tiles="cartodbpositron")
+    
     if not df.empty:
         for _, row in df.iterrows():
-            loc = [52.4064, 16.9252]
-            for city, coords in city_map.items():
+            # Próba dopasowania miasta z nazwy targów
+            loc = [52.4064, 16.9252] # Domyślnie Poznań (HQ)
+            for city, coords in city_coords.items():
                 if city.lower() in str(row['Nazwa Targów']).lower():
                     loc = coords
                     break
@@ -182,13 +196,14 @@ with tabs[0]:
             icon_color = 'blue' if '🔵' in row['Status Operacyjny'] else 'green' if '🟢' in row['Status Operacyjny'] else 'gray'
             folium.Marker(
                 location=loc,
-                popup=f"<b>{row['Nazwa Targów']}</b><br>{row['Dane Auta']}<br>Koszty: {row['Suma Kosztów']} PLN",
+                popup=f"<b>{row['Nazwa Targów']}</b><br>{row['Dane Auta']}<br>Koszt: {row['Suma Kosztów']} PLN",
+                tooltip=f"{row['Dane Auta']} | {row['Status Operacyjny']}",
                 icon=folium.Icon(color=icon_color, icon='truck', prefix='fa')
             ).add_to(m)
 
     st_folium(m, width="100%", height=500)
 
-# --- TAB 2: TRACKING ---
+# --- TAB 2: TRACKING LIVE (KAŻDE ZLECENIE OSOBNO) ---
 with tabs[1]:
     if not df.empty:
         for idx, row in df.iterrows():
@@ -204,13 +219,17 @@ with tabs[1]:
                         <div class="total-cost-badge">SUMA: {row['Suma Kosztów']:,.2f} PLN</div>
                     </div>
                     <div class="cost-container">
-                        <span class="cost-item">📤 Eksport: {row['Koszt Eksport']:,.2f} PLN</span>
-                        <span class="cost-item">📥 Import: {row['Koszt Import']:,.2f} PLN</span>
-                        <span class="cost-item">🅿️ Postoje: {row['Postoje i Parkingi']:,.2f} PLN</span>
+                        <span class="cost-item">📤 Eksport: <b>{row['Koszt Eksport']:,.2f} PLN</b></span>
+                        <span class="cost-item">📥 Import: <b>{row['Koszt Import']:,.2f} PLN</b></span>
+                        <span class="cost-item">🅿️ Postoje/Parkingi: <b>{row['Postoje i Parkingi']:,.2f} PLN</b></span>
+                    </div>
+                    <div style="margin-top: 15px; font-size: 14px; color: #64748b;">
+                        👤 Kierowca: <b>{row.get('Kierowca','-')}</b> | 📞 Tel: <b>{row.get('Telefon','-')}</b> | 📋 Logistyk: <b>{row.get('Logistyk','-')}</b>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
             
+            # Wykres Gantta dla tego konkretnego zlecenia
             gantt_list = []
             for stage, s_col, e_col, color in STAGES:
                 if pd.notnull(row.get(s_col)) and pd.notnull(row.get(e_col)):
@@ -220,59 +239,90 @@ with tabs[1]:
             if gantt_list:
                 fig = px.timeline(pd.DataFrame(gantt_list), x_start="Start", x_end="Finish", y=[row['Nazwa Targów']]*len(gantt_list), 
                                 color="Etap", template="plotly_white", color_discrete_map={s[0]: s[3] for s in STAGES})
+                fig.add_vline(x=datetime.now().timestamp() * 1000, line_dash="dash", line_color="red", annotation_text="DZIŚ")
                 fig.update_layout(height=180, margin=dict(t=0, b=0, l=10, r=10), showlegend=True, yaxis_visible=False)
                 st.plotly_chart(fig, use_container_width=True, key=f"gantt_{idx}")
+            
+            if pd.notnull(row.get('Notatka')) and row['Notatka'] != "":
+                st.info(f"📝 **UWAGI / SLOTA:** {row['Notatka']}")
+    else:
+        st.info("Brak aktywnych transportów w bazie.")
 
-# Pozostałe zakładki (Nowe zlecenie, Edycja, Baza) - analogicznie jak wcześniej...
+# --- TAB 3: DODAWANIE ZLECENIA ---
 with tabs[2]:
-    with st.form("add_new"):
+    with st.form("new_order_form"):
+        st.subheader("Informacje o Projekcie")
         c1, c2, c3 = st.columns(3)
-        nt = c1.text_input("Nazwa Targów*")
+        nt = c1.text_input("Nazwa Targów* (np. ICE Barcelona)")
         lg = c2.text_input("Logistyk*")
-        da = c3.text_input("Dane Auta*")
+        da = c3.text_input("Dane Auta* (Model / Nr Rej)")
+        
+        st.subheader("💰 Rozliczenie Finansowe")
         k1, k2, k3 = st.columns(3)
-        exp = k1.number_input("Koszt Eksport", min_value=0.0)
-        imp = k2.number_input("Koszt Import", min_value=0.0)
-        ext = k3.number_input("Postoje i Parkingi", min_value=0.0)
+        exp = k1.number_input("Koszt Eksport (PLN)", min_value=0.0)
+        imp = k2.number_input("Koszt Import (PLN)", min_value=0.0)
+        ext = k3.number_input("Postoje i Parkingi (PLN)", min_value=0.0)
+        
+        st.subheader("🗓️ Harmonogram Operacyjny")
         col1, col2, col3, col4 = st.columns(4)
-        d1 = col1.date_input("Załadunek")
+        d1 = col1.date_input("Data Załadunku")
         d2 = col2.date_input("Trasa Start")
         d3 = col3.date_input("Rozładunek Montaż")
         d4 = col4.date_input("Wjazd po Empties")
+        
+        col5, col6, col7 = st.columns(3)
+        d5 = col5.date_input("Dostawa Empties")
+        d6 = col6.date_input("Odbiór Pełnych")
+        d7 = col7.date_input("Rozładunek Powrotny")
+        
         ki = st.text_input("Kierowca")
         te = st.text_input("Telefon")
-        no = st.text_area("Notatka")
-        if st.form_submit_button("ZATWIERDŹ"):
-            new_row = pd.DataFrame([{
-                "Nazwa Targów": nt, "Logistyk": lg, "Dane Auta": da, "Kierowca": ki, "Telefon": te,
-                "Koszt Eksport": exp, "Koszt Import": imp, "Postoje i Parkingi": ext,
-                "Data Załadunku": d1, "Trasa Start": d2, "Rozładunek Montaż": d3, "Postój": d3,
-                "Wjazd po Empties": d4, "Postój z Empties": d4, "Dostawa Empties": d4,
-                "Odbiór Pełnych": d4, "Trasa Powrót": d4, "Rozładunek Powrotny": d4, "Notatka": no
-            }])
-            conn.update(worksheet="VECTURA", data=pd.concat([df.drop(columns=['Status Operacyjny','Suma Kosztów'], errors='ignore'), new_row], ignore_index=True))
-            st.success("Dodano!"); time.sleep(1); st.rerun()
+        no = st.text_area("Notatka (sloty, numery kontenerów, uwagi)")
 
+        if st.form_submit_button("DODAJ ZLECENIE DO SYSTEMU"):
+            if nt and da:
+                new_row = pd.DataFrame([{
+                    "Nazwa Targów": nt, "Logistyk": lg, "Dane Auta": da, "Kierowca": ki, "Telefon": te,
+                    "Koszt Eksport": exp, "Koszt Import": imp, "Postoje i Parkingi": ext,
+                    "Data Załadunku": d1, "Trasa Start": d2, "Rozładunek Montaż": d3, "Postój": d3,
+                    "Wjazd po Empties": d4, "Postój z Empties": d4, "Dostawa Empties": d5,
+                    "Odbiór Pełnych": d6, "Trasa Powrót": d6, "Rozładunek Powrotny": d7, "Notatka": no
+                }])
+                combined = pd.concat([df.drop(columns=['Status Operacyjny','Suma Kosztów'], errors='ignore'), new_row], ignore_index=True)
+                conn.update(worksheet="VECTURA", data=combined)
+                st.success("Dodano pomyślnie! Odświeżam..."); time.sleep(1); st.rerun()
+
+# --- TAB 4: EDYCJA ---
 with tabs[3]:
     if not df.empty:
         df['key'] = df['Nazwa Targów'] + " | " + df['Dane Auta']
-        sel = st.selectbox("Edytuj:", df['key'].unique())
-        idx = df[df['key'] == sel].index[0]
+        selection = st.selectbox("Wybierz transport do modyfikacji:", df['key'].unique())
+        idx = df[df['key'] == selection].index[0]
         r = df.loc[idx]
-        with st.form("edit"):
+        
+        with st.form("edit_form"):
             e_nt = st.text_input("Nazwa Targów", r['Nazwa Targów'])
-            e_exp = st.number_input("Eksport", value=float(r['Koszt Eksport']))
-            e_imp = st.number_input("Import", value=float(r['Koszt Import']))
-            e_ext = st.number_input("Postoje", value=float(r['Postoje i Parkingi']))
-            if st.form_submit_button("ZAPISZ"):
-                df.loc[idx, ['Nazwa Targów', 'Koszt Eksport', 'Koszt Import', 'Postoje i Parkingi']] = [e_nt, e_exp, e_imp, e_ext]
+            e_da = st.text_input("Dane Auta", r['Dane Auta'])
+            ce1, ce2, ce3 = st.columns(3)
+            e_exp = ce1.number_input("Eksport", value=float(r['Koszt Eksport']))
+            e_imp = ce2.number_input("Import", value=float(r['Koszt Import']))
+            e_ext = ce3.number_input("Postoje", value=float(r['Postoje i Parkingi']))
+            e_no = st.text_area("Notatki", r['Notatka'])
+            
+            if st.form_submit_button("ZAPISZ ZMIANY"):
+                df.loc[idx, ['Nazwa Targów', 'Dane Auta', 'Koszt Eksport', 'Koszt Import', 'Postoje i Parkingi', 'Notatka']] = [e_nt, e_da, e_exp, e_imp, e_ext, e_no]
                 conn.update(worksheet="VECTURA", data=df.drop(columns=['Status Operacyjny','Suma Kosztów','key'], errors='ignore'))
-                st.rerun()
+                st.success("Zaktualizowano!"); time.sleep(1); st.rerun()
 
-with tabs[4]: st.dataframe(df.drop(columns=['Status Operacyjny','key'], errors='ignore'))
+# --- TAB 5 I 6: BAZA I USUWANIE ---
+with tabs[4]: 
+    st.subheader("Pełna Ewidencja Transportowa")
+    st.dataframe(df.drop(columns=['Status Operacyjny','key'], errors='ignore'), use_container_width=True)
+
 with tabs[5]:
     if not df.empty:
-        target = st.selectbox("Usuń:", df['key'].unique())
-        if st.button("POTWIERDŹ"):
-            conn.update(worksheet="VECTURA", data=df[df['key'] != target].drop(columns=['Status Operacyjny','Suma Kosztów','key'], errors='ignore'))
-            st.rerun()
+        target = st.selectbox("Wybierz transport do całkowitego usunięcia:", df['key'].unique())
+        if st.button("🚨 USUŃ TRWALE Z BAZY"):
+            new_df = df[df['key'] != target].drop(columns=['Status Operacyjny','Suma Kosztów','key'], errors='ignore')
+            conn.update(worksheet="VECTURA", data=new_df)
+            st.warning("Usunięto."); time.sleep(1); st.rerun()

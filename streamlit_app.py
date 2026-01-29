@@ -2,154 +2,160 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import plotly.express as px
-from datetime import datetime, timedelta
+from datetime import timedelta
 
-# Konfiguracja strony
-st.set_page_config(page_title="SQM Logistics - Harmonogram GANTT", layout="wide")
+# Konfiguracja strony SQM
+st.set_page_config(page_title="SQM VECTURA Logistics", layout="wide")
 
-st.title("🚚 SQM Logistics: Harmonogram Transportów")
+st.title("🚚 SQM VECTURA - Zarządzanie Transportem i Empties")
 
-# Nawiązanie połączenia z Google Sheets
+# Inicjalizacja połączenia z Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Pobieranie aktualnych danych
+# Nazwa arkusza z Twojego pliku Google
+SHEET_NAME = "VECTURA"
+
+# Pobieranie danych
 try:
-    existing_data = conn.read(ttl=0)
-    # Konwersja kolumn dat na format datetime dla obliczeń
-    date_columns = [
+    # Pobieramy dane bezpośrednio z zakładki VECTURA
+    existing_data = conn.read(worksheet=SHEET_NAME, ttl=0)
+    
+    # Usuwamy całkowicie puste wiersze, jeśli istnieją
+    existing_data = existing_data.dropna(how='all')
+    
+    # Konwersja kolumn dat na format daty (bez godziny)
+    date_cols = [
         'Data Załadunku', 'Trasa Start', 'Rozładunek Montaż', 'Postój', 
         'Wjazd Empties', 'Postój Empties', 'Dostawa Empties', 
         'Odbiór Case', 'Trasa Powrót', 'Rozładunek Powrotny'
     ]
-    for col in date_columns:
-        existing_data[col] = pd.to_datetime(existing_data[col]).dt.date
+    
+    if not existing_data.empty:
+        for col in date_cols:
+            if col in existing_data.columns:
+                existing_data[col] = pd.to_datetime(existing_data[col]).dt.date
 except Exception as e:
-    st.error(f"Błąd połączenia z arkuszem lub pusty arkusz: {e}")
+    st.error(f"Nie udało się połączyć z arkuszem VECTURA. Sprawdź Secrets i uprawnienia. Błąd: {e}")
     existing_data = pd.DataFrame()
 
-# Zakładki
-tab1, tab2, tab3 = st.tabs(["📊 Wykres Gantta", "🆕 Dodaj Transport", "📋 Tabela Danych"])
+# Menu nawigacyjne
+tab1, tab2, tab3 = st.tabs(["📊 Wykres Gantta", "➕ Dodaj Nowy Transport", "📋 Tabela i Edycja"])
 
 with tab1:
-    st.subheader("Oś Czasu Floty")
-    if not existing_data.empty:
-        # Przygotowanie danych pod format Plotly Gantt (rozbicie etapów na wiersze)
+    st.subheader("Harmonogram Pracy Aut")
+    if not existing_data.empty and 'Dane Auta' in existing_data.columns:
         gantt_list = []
         
-        for index, row in existing_data.iterrows():
-            # Definiujemy etapy jako pary (Nazwa, Start, Koniec)
+        for _, row in existing_data.iterrows():
+            # Definicja etapów procesu SQM
             stages = [
-                ("Załadunek", row['Data Załadunku'], row['Trasa Start']),
-                ("Trasa", row['Trasa Start'], row['Rozładunek Montaż']),
-                ("Montaż", row['Rozładunek Montaż'], row['Postój']),
-                ("Postój", row['Postój'], row['Wjazd Empties']),
-                ("Empties In", row['Wjazd Empties'], row['Postój Empties']),
-                ("Postój Empties", row['Postój Empties'], row['Dostawa Empties']),
-                ("Dostawa Empties", row['Dostawa Empties'], row['Odbiór Case']),
-                ("Odbiór Case", row['Odbiór Case'], row['Trasa Powrót']),
-                ("Powrót", row['Trasa Powrót'], row['Rozładunek Powrotny']),
-                ("Rozładunek", row['Rozładunek Powrotny'], row['Rozładunek Powrotny'] + timedelta(days=1))
+                ("1. Załadunek", row['Data Załadunku'], row['Trasa Start']),
+                ("2. Trasa", row['Trasa Start'], row['Rozładunek Montaż']),
+                ("3. Montaż", row['Rozładunek Montaż'], row['Postój']),
+                ("4. Postój", row['Postój'], row['Wjazd Empties']),
+                ("5. Empties In", row['Wjazd Empties'], row['Postój Empties']),
+                ("6. Postój Empties", row['Postój Empties'], row['Dostawa Empties']),
+                ("7. Dostawa Empties", row['Dostawa Empties'], row['Odbiór Case']),
+                ("8. Odbiór Case", row['Odbiór Case'], row['Trasa Powrót']),
+                ("9. Powrót", row['Trasa Powrót'], row['Rozładunek Powrotny']),
+                ("10. Rozładunek", row['Rozładunek Powrotny'], row['Rozładunek Powrotny'] + timedelta(days=1))
             ]
             
-            for stage_name, start_date, end_date in stages:
-                gantt_list.append({
-                    "Auto": f"{row['Dane Auta']} ({row['Nazwa Targów']})",
-                    "Start": start_date,
-                    "Finish": end_date,
-                    "Etap": stage_name,
-                    "Targi": row['Nazwa Targów'],
-                    "Logistyk": row['Logistyk']
-                })
+            for stage_name, start, end in stages:
+                if pd.notnull(start) and pd.notnull(end):
+                    gantt_list.append({
+                        "Auto": f"{row['Dane Auta']} | {row['Nazwa Targów']}",
+                        "Start": start,
+                        "Finish": end,
+                        "Etap": stage_name,
+                        "Logistyk": row.get('Logistyk', 'N/A')
+                    })
         
-        df_gantt = pd.DataFrame(gantt_list)
-
-        # Tworzenie wykresu
-        fig = px.timeline(
-            df_gantt, 
-            x_start="Start", 
-            x_end="Finish", 
-            y="Auto", 
-            color="Etap",
-            hover_data=["Targi", "Logistyk"],
-            title="Harmonogram pracy aut na eventach",
-            labels={"Etap": "Faza transportu"}
-        )
-        
-        fig.update_yaxes(autorange="reversed") # Najnowsze na górze
-        fig.update_layout(
-            xaxis_title="Data",
-            yaxis_title="Auto / Event",
-            height=600,
-            hovermode="closest"
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
+        if gantt_list:
+            df_gantt = pd.DataFrame(gantt_list)
+            fig = px.timeline(
+                df_gantt, 
+                x_start="Start", 
+                x_end="Finish", 
+                y="Auto", 
+                color="Etap",
+                hover_data=["Logistyk"],
+                title="Wykres Gantta - Flota SQM"
+            )
+            fig.update_yaxes(autorange="reversed")
+            fig.update_layout(xaxis_title="Kalendarz", yaxis_title="Pojazd / Event", height=600)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("Brak poprawnych dat do wygenerowania wykresu.")
     else:
-        st.info("Brak danych do wyświetlenia wykresu.")
+        st.info("Dodaj pierwszy transport, aby zobaczyć wykres.")
 
 with tab2:
-    with st.form(key="transport_form"):
-        st.subheader("Nowe Zlecenie")
+    st.subheader("Formularz Rezerwacji Transportu")
+    with st.form("transport_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
-            event_name = st.text_input("Nazwa Targów*")
-            logistyk = st.text_input("Logistyk Prowadzący*")
-            kwota = st.number_input("Kwota", min_value=0)
+            f_event = st.text_input("Nazwa Targów*")
+            f_logistyk = st.text_input("Logistyk*")
+            f_price = st.number_input("Kwota", min_value=0, step=10)
         with col2:
-            auto_data = st.text_input("Dane Auta*")
-            kierowca = st.text_input("Kierowca")
-            telefon = st.text_input("Telefon")
+            f_auto = st.text_input("Dane Auta (Nr rej)*")
+            f_driver = st.text_input("Kierowca")
+            f_phone = st.text_input("Telefon")
 
-        st.divider()
+        st.markdown("---")
+        st.write("📅 **Harmonogram Etapów**")
+        
         c1, c2, c3, c4, c5 = st.columns(5)
-        # Słownik na daty, aby łatwiej było nimi zarządzać
-        d = {}
         with c1:
-            d[1] = st.date_input("1. Załadunek")
-            d[2] = st.date_input("2. Trasa (Start)")
+            d1 = st.date_input("1. Załadunek")
+            d2 = st.date_input("2. Trasa (Start)")
         with c2:
-            d[3] = st.date_input("3. Rozładunek/Montaż")
-            d[4] = st.date_input("4. Postój")
+            d3 = st.date_input("3. Rozładunek/Montaż")
+            d4 = st.date_input("4. Postój")
         with c3:
-            d[5] = st.date_input("5. Wjazd po Empties")
-            d[6] = st.date_input("6. Postój z Empties")
+            d5 = st.date_input("5. Wjazd po Empties")
+            d6 = st.date_input("6. Postój z Empties")
         with c4:
-            d[7] = st.date_input("7. Dostawa Empties")
-            d[8] = st.date_input("8. Odbiór pełnych Case")
+            d7 = st.date_input("7. Dostawa Empties")
+            d8 = st.date_input("8. Odbiór pełnych Case")
         with c5:
-            d[9] = st.date_input("9. Trasa Powrotna")
-            d[10] = st.date_input("10. Rozładunek Powrotny")
+            d9 = st.date_input("9. Trasa Powrotna")
+            d10 = st.date_input("10. Rozładunek Powrotny")
 
-        submit = st.form_submit_button("Zapisz i zaktualizuj wykres")
+        submitted = st.form_submit_button("Zapisz do VECTURA")
 
-        if submit:
-            if not event_name or not auto_data:
-                st.error("Uzupełnij nazwę targów i dane auta!")
+        if submitted:
+            if not f_event or not f_auto:
+                st.error("Pola 'Nazwa Targów' i 'Dane Auta' są obowiązkowe!")
             else:
-                # Walidacja kolizji
+                # Walidacja kolizji auta
                 collision = False
                 if not existing_data.empty:
-                    auto_trips = existing_data[existing_data['Dane Auta'] == auto_data]
+                    auto_trips = existing_data[existing_data['Dane Auta'] == f_auto]
                     for _, row in auto_trips.iterrows():
-                        if (d[1] <= row['Rozładunek Powrotny']) and (d[10] >= row['Data Załadunku']):
+                        # Logika sprawdzania nachodzenia dat
+                        if (d1 <= row['Rozładunek Powrotny']) and (d10 >= row['Data Załadunku']):
                             collision = True
-                            st.error(f"BŁĄD: Auto {auto_data} jest zajęte w tym terminie przez: {row['Nazwa Targów']}")
+                            st.error(f"❌ KOLIZJA! Auto {f_auto} jest już zajęte od {row['Data Załadunku']} do {row['Rozładunek Powrotny']} (Event: {row['Nazwa Targów']})")
                 
                 if not collision:
-                    new_data = pd.DataFrame([{
-                        "Nazwa Targów": event_name, "Logistyk": logistyk,
-                        "Data Załadunku": d[1], "Trasa Start": d[2],
-                        "Rozładunek Montaż": d[3], "Postój": d[4],
-                        "Wjazd Empties": d[5], "Postój Empties": d[6],
-                        "Dostawa Empties": d[7], "Odbiór Case": d[8],
-                        "Trasa Powrót": d[9], "Rozładunek Powrotny": d[10],
-                        "Kwota": kwota, "Dane Auta": auto_data,
-                        "Kierowca": kierowca, "Telefon": telefon
+                    new_entry = pd.DataFrame([{
+                        "Nazwa Targów": f_event, "Logistyk": f_logistyk, "Kwota": f_price,
+                        "Dane Auta": f_auto, "Kierowca": f_driver, "Telefon": f_phone,
+                        "Data Załadunku": d1, "Trasa Start": d2, "Rozładunek Montaż": d3,
+                        "Postój": d4, "Wjazd Empties": d5, "Postój Empties": d6,
+                        "Dostawa Empties": d7, "Odbiór Case": d8, "Trasa Powrót": d9,
+                        "Rozładunek Powrotny": d10
                     }])
-                    updated_df = pd.concat([existing_data, new_data], ignore_index=True)
-                    conn.update(data=updated_df)
-                    st.success("Dodano! Odśwież stronę, aby zobaczyć zmiany na wykresie.")
+                    
+                    updated_df = pd.concat([existing_data, new_entry], ignore_index=True)
+                    conn.update(worksheet=SHEET_NAME, data=updated_df)
+                    st.success("✅ Dane zapisane pomyślnie w arkuszu VECTURA!")
+                    st.balloons()
 
 with tab3:
-    st.subheader("Surowe Dane")
+    st.subheader("Podgląd Danych")
     st.dataframe(existing_data, use_container_width=True)
+    if st.button("Odśwież dane z arkusza"):
+        st.rerun()

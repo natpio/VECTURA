@@ -4,61 +4,56 @@ import plotly.express as px
 from datetime import timedelta, datetime
 import time
 
-# --- 1. KONFIGURACJA I ZABEZPIECZENIA ---
+# --- 1. KONFIGURACJA I POŁĄCZENIE ---
 try:
     from streamlit_gsheets import GSheetsConnection
-    import folium
-    from streamlit_folium import st_folium
 except ModuleNotFoundError:
-    st.error("🚨 KRYTYCZNY BŁĄD: BRAK BIBLIOTEK")
-    st.info("Upewnij się, że w pliku requirements.txt znajduje się: st-gsheets-connection, streamlit, pandas, plotly, folium, streamlit-folium.")
+    st.error("🚨 Brak biblioteki st-gsheets-connection!")
     st.stop()
 
-st.set_page_config(
-    page_title="SQM VECTURA | Logistics Live Base", 
-    layout="wide", 
-    page_icon="🚛"
-)
+st.set_page_config(page_title="SQM VECTURA | Logistics Tower", layout="wide", page_icon="🚛")
 
-# Style wizualne SQM Multimedia Solutions
+# --- STYLE SQM ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
     html, body, [class*="st-"] { font-family: 'Inter', sans-serif; }
-    .stApp { background: #f1f5f9; }
-    .main-header { font-size: 32px; font-weight: 900; color: #003366; margin-bottom: 20px; }
-    .status-card {
-        background: white; border-radius: 12px; padding: 15px;
-        border-left: 8px solid #003366; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        margin-bottom: 10px;
+    .stApp { background: #f8fafc; }
+    .project-card {
+        background: white; border-radius: 16px; padding: 25px;
+        border-left: 12px solid #003366; box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        margin-bottom: 25px;
     }
-    .stButton>button { border-radius: 8px; font-weight: 700; }
+    .status-badge { padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; }
+    .total-cost-badge { background: #003366; color: white; padding: 8px 18px; border-radius: 10px; font-weight: 700; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. SYSTEM DOSTĘPU ---
-if "auth" not in st.session_state:
-    st.session_state["auth"] = False
-
+# --- LOGOWANIE ---
+if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
-    c1, c2, c3 = st.columns([1,2,1])
-    with c2:
-        st.markdown("<div style='text-align:center; margin-top:100px;'>", unsafe_allow_html=True)
-        st.title("SQM VECTURA 🔐")
-        pw = st.text_input("Hasło systemowe:", type="password")
-        if st.button("ZALOGUJ DO SYSTEMU"):
-            if pw == "VECTURAsqm2026":
-                st.session_state["auth"] = True
-                st.rerun()
-            else:
-                st.error("Nieprawidłowe hasło dostępu.")
+    st.title("SQM VECTURA 🔐")
+    pw = st.text_input("Hasło:", type="password")
+    if st.button("Zaloguj"):
+        if pw == "VECTURAsqm2026":
+            st.session_state["auth"] = True
+            st.rerun()
+        else: st.error("Błędne hasło")
     st.stop()
 
-# --- 3. POŁĄCZENIE Z DANYMI (GOOGLE SHEETS) ---
+# --- DANE ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Definicja sztywnej struktury kolumn SQM
-COLUMN_ORDER = [
+def load_data():
+    try:
+        data = conn.read(worksheet="VECTURA", ttl=0)
+        return data.dropna(subset=['Nazwa Targów', 'Dane Auta'], how='all')
+    except: return pd.DataFrame()
+
+df = load_data()
+
+# Nagłówki kolumn w Twoim Google Sheets
+COLS = [
     "Nazwa Targów", "Logistyk", "Dane Auta", "Kierowca", "Telefon",
     "Koszt Eksport", "Koszt Import", "Postoje i Parkingi",
     "Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Postój",
@@ -66,144 +61,138 @@ COLUMN_ORDER = [
     "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny", "Notatka"
 ]
 
-def load_data():
-    try:
-        data = conn.read(worksheet="VECTURA", ttl=0)
-        # Konwersja kolumn finansowych na liczby
-        for c in ['Koszt Eksport', 'Koszt Import', 'Postoje i Parkingi']:
-            if c in data.columns:
-                data[c] = pd.to_numeric(data[c], errors='coerce').fillna(0)
-        # Konwersja kolumn dat na format datetime
-        for c in COLUMN_ORDER:
-            if any(x in c for x in ["Data", "Trasa", "Rozładunek", "Postój", "Wjazd", "Dostawa", "Odbiór"]):
-                if c in data.columns:
-                    data[c] = pd.to_datetime(data[c], errors='coerce')
-        return data.dropna(subset=['Nazwa Targów', 'Dane Auta'], how='all')
-    except Exception as e:
-        st.error(f"Błąd ładowania danych: {e}")
-        return pd.DataFrame(columns=COLUMN_ORDER)
+# Etapy do wyliczenia statusu i wykresu
+STAGES = [
+    ("Załadunek", "Data Załadunku", "Trasa Start", "#3b82f6"),
+    ("Trasa", "Trasa Start", "Rozładunek Montaż", "#6366f1"),
+    ("Montaż", "Rozładunek Montaż", "Postój", "#8b5cf6"),
+    ("Puste (Empties)", "Wjazd po Empties", "Dostawa Empties", "#ec4899"),
+    ("Powrót", "Trasa Powrót", "Rozładunek Powrotny", "#22c55e")
+]
 
-df = load_data()
+if not df.empty:
+    for c in COLS:
+        if any(x in c for x in ["Data", "Start", "Rozładunek", "Postój", "Wjazd", "Dostawa", "Odbiór", "Trasa"]):
+            df[c] = pd.to_datetime(df[c], errors='coerce')
+    for c in ['Koszt Eksport', 'Koszt Import', 'Postoje i Parkingi']:
+        df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+    df['Suma'] = df['Koszt Eksport'] + df['Koszt Import'] + df['Postoje i Parkingi']
 
-# Zapewnienie, że wszystkie wymagane kolumny istnieją w DF
-for col in COLUMN_ORDER:
-    if col not in df.columns:
-        df[col] = None
+def get_status(row):
+    now = pd.Timestamp(datetime.now().date())
+    if pd.isnull(row.get('Data Załadunku')): return "⚪ Brak Dat"
+    if pd.notnull(row.get('Rozładunek Powrotny')) and row['Rozładunek Powrotny'] < now: return "🔵 Zakończony"
+    for name, s, e, _ in STAGES:
+        if pd.notnull(row.get(s)) and pd.notnull(row.get(e)):
+            if row[s] <= now <= row[e]: return f"🟢 {name}"
+    return "🚚 W drodze"
 
-# --- 4. INTERFEJS GŁÓWNY ---
-st.markdown("<div class='main-header'>VECTURA | Live Database Control</div>", unsafe_allow_html=True)
+def get_safe_date(val):
+    return val.date() if pd.notnull(val) else datetime.now().date()
 
-tabs = st.tabs(["📊 EDYCJA BAZY (EXCEL LIVE)", "📍 TRACKING & GANTT", "➕ SZYBKIE DODAWANIE", "🗑️ USUWANIE"])
+# --- INTERFEJS ---
+st.title("VECTURA | Intelligence Tower SQM")
+tabs = st.tabs(["📍 TRACKING LIVE", "✏️ EDYCJA TRANSPORTU", "➕ NOWE ZLECENIE", "📋 BAZA", "🗑️ USUŃ"])
 
-# --- TAB 1: EDYCJA BEZPOŚREDNIA ---
+# TAB 1: TRACKING (To co mieliśmy wcześniej)
 with tabs[0]:
-    st.info("💡 Edytuj dowolną komórkę bezpośrednio w tabeli. Kliknij dwukrotnie, aby zmienić tekst lub wybrać datę z kalendarza.")
-    
-    # Konfiguracja wyświetlania kolumn w edytorze
-    col_config = {
-        "Nazwa Targów": st.column_config.TextColumn("Nazwa Targów", width="medium", required=True),
-        "Logistyk": st.column_config.TextColumn("Logistyk", width="small"),
-        "Dane Auta": st.column_config.TextColumn("Dane Auta", width="medium"),
-        "Koszt Eksport": st.column_config.NumberColumn("Eksport (PLN)", format="%.2f"),
-        "Koszt Import": st.column_config.NumberColumn("Import (PLN)", format="%.2f"),
-        "Postoje i Parkingi": st.column_config.NumberColumn("Postoje (PLN)", format="%.2f"),
-        "Data Załadunku": st.column_config.DateColumn("Załadunek"),
-        "Rozładunek Montaż": st.column_config.DateColumn("Montaż"),
-        "Wjazd po Empties": st.column_config.DateColumn("Empties In"),
-        "Rozładunek Powrotny": st.column_config.DateColumn("Rozładunek SQM"),
-        "Notatka": st.column_config.TextColumn("Uwagi / Sloty / LDM", width="large")
-    }
+    if not df.empty:
+        for idx, row in df.iterrows():
+            status = get_status(row)
+            st.markdown(f"""
+                <div class="project-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:24px; font-weight:900;">{row['Dane Auta']} | {row['Nazwa Targów']}</span>
+                        <span class="total-cost-badge">SUMA: {row['Suma']:,.2f} PLN</span>
+                    </div>
+                    <div style="margin-top:10px;">
+                        Status: <b>{status}</b> | Kierowca: {row.get('Kierowca','-')} | Tel: {row.get('Telefon','-')}
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            # Wykres Gantta
+            g_data = []
+            for name, s, e, clr in STAGES:
+                if pd.notnull(row.get(s)) and pd.notnull(row.get(e)):
+                    g_data.append({"Etap": name, "Start": row[s], "Finish": row[e] + timedelta(days=1), "Color": clr})
+            if g_data:
+                fig = px.timeline(pd.DataFrame(g_data), x_start="Start", x_end="Finish", y=[row['Nazwa Targów']]*len(g_data), color="Etap", color_discrete_map={x[0]:x[3] for x in STAGES})
+                fig.update_layout(height=180, showlegend=True, yaxis_visible=False, margin=dict(t=0, b=0, l=5, r=5))
+                st.plotly_chart(fig, use_container_width=True, key=f"g_{idx}")
 
-    # Główny silnik edycji danych
-    edited_df = st.data_editor(
-        df[COLUMN_ORDER],
-        use_container_width=True,
-        num_rows="dynamic",
-        column_config=col_config,
-        key="sqm_editor",
-        height=650
-    )
-
-    st.divider()
-    
-    # Przycisk zapisu zmian do Google Sheets
-    c1, c2, c3 = st.columns([1,1,1])
-    with c2:
-        if st.button("💾 ZAPISZ WSZYSTKIE ZMIANY W GOOGLE SHEETS", use_container_width=True, type="primary"):
-            try:
-                # Oczyszczenie przed zapisem (usunięcie całkowicie pustych wierszy)
-                save_df = edited_df.dropna(subset=['Nazwa Targów', 'Dane Auta'], how='all')
-                conn.update(worksheet="VECTURA", data=save_df)
-                st.success("✅ Dane zostały zsynchronizowane z arkuszem Google!"); time.sleep(1); st.rerun()
-            except Exception as e:
-                st.error(f"Krytyczny błąd zapisu: {e}")
-
-# --- TAB 2: TRACKING & GANTT ---
+# TAB 2: EDYCJA (Naprawiona i Pełna)
 with tabs[1]:
     if not df.empty:
-        # Podsumowanie finansowe na górze
-        total_costs = df['Koszt Eksport'].sum() + df['Koszt Import'].sum() + df['Postoje i Parkingi'].sum()
-        st.metric("Całkowite koszty operacyjne (widoczne projekty)", f"{total_costs:,.2f} PLN")
-        
-        for idx, row in df.iterrows():
-            with st.container():
-                st.markdown(f"""
-                    <div class="status-card">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 18px; font-weight: 800;">{row['Dane Auta']} | {row['Nazwa Targów']}</span>
-                            <span style="font-weight: 600; color: #003366;">{row.get('Logistyk','-')}</span>
-                        </div>
-                        <div style="font-size: 13px; color: #64748b; margin-top: 5px;">
-                            Kierowca: {row.get('Kierowca','-')} | Tel: {row.get('Telefon','-')}
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                # Dynamiczny wykres Gantta dla etapów transportu
-                stages = []
-                gantt_map = [
-                    ("Trasa", "Data Załadunku", "Rozładunek Montaż", "#3b82f6"),
-                    ("Montaż/Postój", "Rozładunek Montaż", "Wjazd po Empties", "#8b5cf6"),
-                    ("Empties/Powrót", "Wjazd po Empties", "Rozładunek Powrotny", "#22c55e")
-                ]
-                for name, start_col, end_col, color in gantt_map:
-                    if pd.notnull(row.get(start_col)) and pd.notnull(row.get(end_col)):
-                        stages.append({"Etap": name, "Start": row[start_col], "Finish": row[end_col] + timedelta(hours=23), "Color": color})
-                
-                if stages:
-                    fig = px.timeline(pd.DataFrame(stages), x_start="Start", x_end="Finish", y=[row['Nazwa Targów']]*len(stages), color="Etap", color_discrete_map={s[0]: s[3] for s in gantt_map})
-                    fig.update_layout(height=150, showlegend=True, yaxis_visible=False, margin=dict(t=0, b=0, l=5, r=5))
-                    st.plotly_chart(fig, use_container_width=True, key=f"gantt_live_{idx}")
-    else:
-        st.info("Baza danych jest pusta. Dodaj pierwszy transport.")
+        df['key'] = df['Nazwa Targów'] + " | " + df['Dane Auta']
+        sel = st.selectbox("Wybierz transport do edycji:", df['key'].unique())
+        idx_edit = df[df['key'] == sel].index[0]
+        r = df.loc[idx_edit]
 
-# --- TAB 3: SZYBKIE DODAWANIE ---
+        with st.form("full_edit"):
+            st.subheader(f"Modyfikacja: {sel}")
+            c1, c2, c3 = st.columns(3)
+            e_nt = c1.text_input("Nazwa Targów", r['Nazwa Targów'])
+            e_lg = c2.text_input("Logistyk", r['Logistyk'])
+            e_da = c3.text_input("Dane Auta", r['Dane Auta'])
+            
+            e_ki = c1.text_input("Kierowca", r.get('Kierowca',''))
+            e_te = c2.text_input("Telefon", r.get('Telefon',''))
+            
+            st.divider()
+            st.write("💰 **KOSZTY**")
+            f1, f2, f3 = st.columns(3)
+            e_ex = f1.number_input("Eksport", value=float(r['Koszt Eksport']))
+            e_im = f2.number_input("Import", value=float(r['Koszt Import']))
+            e_ps = f3.number_input("Postoje", value=float(r['Postoje i Parkingi']))
+            
+            st.divider()
+            st.write("📅 **HARMONOGRAM (Wszystkie etapy)**")
+            d1, d2, d3, d4 = st.columns(4)
+            ed_zal = d1.date_input("Załadunek", get_safe_date(r['Data Załadunku']))
+            ed_tra = d2.date_input("Trasa Start", get_safe_date(r['Trasa Start']))
+            ed_roz = d3.date_input("Rozładunek Montaż", get_safe_date(r['Rozładunek Montaż']))
+            ed_pst = d4.date_input("Postój", get_safe_date(r['Postój']))
+            
+            d5, d6, d7, d8 = st.columns(4)
+            ed_ein = d5.date_input("Wjazd Empties", get_safe_date(r['Wjazd po Empties']))
+            ed_dem = d6.date_input("Dostawa Empties", get_safe_date(r['Dostawa Empties']))
+            ed_tpr = d7.date_input("Trasa Powrót", get_safe_date(r['Trasa Powrót']))
+            ed_rpo = d8.date_input("Rozładunek Powrotny", get_safe_date(r['Rozładunek Powrotny']))
+            
+            e_no = st.text_area("Notatka / Sloty", r['Notatka'])
+            
+            if st.form_submit_button("ZAPISZ WSZYSTKIE ZMIANY"):
+                upd = {
+                    "Nazwa Targów": e_nt, "Logistyk": e_lg, "Dane Auta": e_da, "Kierowca": e_ki, "Telefon": e_te,
+                    "Koszt Eksport": e_ex, "Koszt Import": e_im, "Postoje i Parkingi": e_ps,
+                    "Data Załadunku": pd.to_datetime(ed_zal), "Trasa Start": pd.to_datetime(ed_tra),
+                    "Rozładunek Montaż": pd.to_datetime(ed_roz), "Postój": pd.to_datetime(ed_pst),
+                    "Wjazd po Empties": pd.to_datetime(ed_ein), "Dostawa Empties": pd.to_datetime(ed_dem),
+                    "Trasa Powrót": pd.to_datetime(ed_tpr), "Rozładunek Powrotny": pd.to_datetime(ed_rpo),
+                    "Notatka": e_no
+                }
+                for k, v in upd.items(): df.loc[idx_edit, k] = v
+                conn.update(worksheet="VECTURA", data=df.drop(columns=['Suma','key'], errors='ignore'))
+                st.success("Zapisano!"); time.sleep(1); st.rerun()
+
+# TAB 3: DODAWANIE
 with tabs[2]:
-    st.subheader("Szybki wpis nowego transportu")
-    with st.form("quick_add_sqm"):
-        c1, c2, c3 = st.columns(3)
-        new_nt = c1.text_input("Nazwa Targów*")
-        new_da = c2.text_input("Dane Auta*")
-        new_lg = c3.text_input("Logistyk")
-        
-        if st.form_submit_button("DODAJ DO KOLEJKI"):
-            if new_nt and new_da:
-                new_entry = pd.DataFrame([{col: "" for col in COLUMN_ORDER}])
-                new_entry.loc[0, ["Nazwa Targów", "Dane Auta", "Logistyk"]] = [new_nt, new_da, new_lg]
-                new_entry[["Koszt Eksport", "Koszt Import", "Postoje i Parkingi"]] = 0
-                final_df = pd.concat([df[COLUMN_ORDER], new_entry], ignore_index=True)
-                conn.update(worksheet="VECTURA", data=final_df)
-                st.success("Transport dodany! Możesz go teraz uzupełnić w zakładce Edycji."); time.sleep(1); st.rerun()
-            else:
-                st.warning("Pola Nazwa Targów i Dane Auta są wymagane.")
+    with st.form("add_new"):
+        st.subheader("Nowe Zlecenie")
+        a1, a2 = st.columns(2)
+        nt_n = a1.text_input("Nazwa Targów")
+        da_n = a2.text_input("Dane Auta")
+        if st.form_submit_button("DODAJ DO BAZY"):
+            new_row = pd.DataFrame([{c: "" for c in COLS}])
+            new_row.loc[0, ["Nazwa Targów", "Dane Auta"]] = [nt_n, da_n]
+            new_row[['Koszt Eksport', 'Koszt Import', 'Postoje i Parkingi']] = 0
+            conn.update(worksheet="VECTURA", data=pd.concat([df.drop(columns=['Suma','key'], errors='ignore'), new_row], ignore_index=True))
+            st.rerun()
 
-# --- TAB 4: USUWANIE ---
-with tabs[3]:
-    if not df.empty:
-        st.subheader("Usuwanie rekordów")
-        df['del_key'] = df['Nazwa Targów'] + " | " + df['Dane Auta']
-        target = st.selectbox("Wybierz transport do trwałego usunięcia:", df['del_key'].unique())
-        if st.button("🚨 POTWIERDŹ USUNIĘCIE Z BAZY"):
-            rem_df = df[df['del_key'] != target][COLUMN_ORDER]
-            conn.update(worksheet="VECTURA", data=rem_df)
-            st.warning("Rekord został usunięty."); time.sleep(1); st.rerun()
+with tabs[3]: st.dataframe(df.drop(columns=['Suma','key'], errors='ignore'))
+with tabs[4]:
+    target = st.selectbox("Usuń transport:", df['key'].unique() if not df.empty else [])
+    if st.button("🚨 USUŃ"):
+        conn.update(worksheet="VECTURA", data=df[df['key'] != target].drop(columns=['Suma','key'], errors='ignore'))
+        st.rerun()

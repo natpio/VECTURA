@@ -374,7 +374,8 @@ with tabs[2]:
 
 # --- TAB 4: NOWE ZLECENIE ---
 with tabs[3]:
-    with st.form("add_form"):
+    # DODANO: clear_on_submit=True
+    with st.form("add_form", clear_on_submit=True):
         st.subheader("REJESTRACJA TRANSPORTU")
         
         c1, c2, c3 = st.columns(3)
@@ -395,8 +396,8 @@ with tabs[3]:
         st.divider()
         st.markdown("### 🗓️ HARMONOGRAM ROZŁADUNKÓW")
         col1, col2 = st.columns(2)
-        d_zal = col1.date_input("Załadunek SQM")
-        d_roz_m = col2.date_input("Rozładunek 1 (Główny)")
+        d_zal = col1.date_input("Załadunek SQM", value=None)
+        d_roz_m = col2.date_input("Rozładunek 1 (Główny)", value=None)
         
         col2a, col2b = st.columns(2)
         d_roz_m2 = col2a.date_input("Rozładunek 2 (Opcjonalnie)", value=None)
@@ -420,8 +421,8 @@ with tabs[3]:
                 new_data = {
                     "Numer Zlecenia": nz, "Nazwa Targów": nt, "Przewoźnik": przew, "Logistyk": "Admin", "Kwota": kw, 
                     "Dane Auta": da, "Kierowca": ki, "Telefon": te, "Typ Transportu": t_type, "Notatka": no,
-                    "Data Załadunku": pd.to_datetime(d_zal), "Trasa Start": pd.to_datetime(d_zal), 
-                    "Rozładunek Montaż": pd.to_datetime(d_roz_m),
+                    "Data Załadunku": pd.to_datetime(d_zal) if d_zal else None, "Trasa Start": pd.to_datetime(d_zal) if d_zal else None, 
+                    "Rozładunek Montaż": pd.to_datetime(d_roz_m) if d_roz_m else None,
                     "Rozładunek Montaż 2": pd.to_datetime(d_roz_m2) if d_roz_m2 else None,
                     "Rozładunek Montaż 3": pd.to_datetime(d_roz_m3) if d_roz_m3 else None,
                     "Wjazd po Empties": pd.to_datetime(d_wj_e) if d_wj_e else None,

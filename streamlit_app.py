@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import plotly.express as px
@@ -9,7 +8,7 @@ import folium
 from streamlit_folium import st_folium
 import re
 
-# --- 1. KONFIGURACJA UI I STYLÓW ---
+# --- 1. KONFIGURACJA UI I STYLÓW (LUFTHANSA CARGO + PL TERMINOLOGIA) ---
 st.set_page_config(page_title="eventySQM | Ops Control", layout="wide", page_icon="🚛")
 
 st.markdown("""
@@ -212,7 +211,6 @@ def get_status(row):
 def fmt(val): return "" if pd.isna(val) or str(val).lower() == "nan" else str(val)
 
 def parse_date_input(val_str):
-    """Pomocnicza funkcja do bezpiecznej konwersji wpisanej daty RRRR-MM-DD"""
     if not val_str or not val_str.strip():
         return None
     try:
@@ -220,19 +218,7 @@ def parse_date_input(val_str):
     except:
         return None
 
-# --- 5. AUTOMATYCZNE ODŚWIEŻANIE TŁA ---
-components.html(
-    """
-    <script>
-    setTimeout(function(){
-        window.parent.location.reload();
-    }, 300000); // 300 000 ms = 5 minut
-    </script>
-    """,
-    height=0, width=0
-)
-
-# --- 6. INTERFEJS GŁÓWNY ---
+# --- 5. INTERFEJS GŁÓWNY ---
 col_title, col_refresh = st.columns([5, 1])
 
 with col_title:

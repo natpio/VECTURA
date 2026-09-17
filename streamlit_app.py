@@ -9,7 +9,7 @@ import folium
 from streamlit_folium import st_folium
 import re
 
-# --- 1. KONFIGURACJA UI I STYLÓW (LUFTHANSA CARGO + PL TERMINOLOGIA) ---
+# --- 1. KONFIGURACJA UI I STYLÓW ---
 st.set_page_config(page_title="eventySQM | Ops Control", layout="wide", page_icon="🚛")
 
 st.markdown("""
@@ -102,7 +102,16 @@ st.markdown("""
         margin-top: 15px; font-family: 'Space Mono', monospace; font-size: 15px; color: #001a70;
     }
 
-    /* PRZYCISKI PRIMARY (LOGOWANIE + ODŚWIEŻ) */
+    /* POPRAWKA WIDOCZNOŚCI STRZAŁEK W KALENDARZU (DATE_INPUT) */
+    div[data-baseweb="calendar"] button {
+        color: #001a70 !important;
+        font-weight: bold !important;
+    }
+    div[data-baseweb="calendar"] svg {
+        fill: #001a70 !important;
+    }
+
+    /* PRZYCISKI PRIMARY */
     div.stButton > button[kind="primary"] {
         background-color: #001a70;
         color: white; border: none; font-weight: bold; letter-spacing: 1px; border-radius: 4px; padding: 10px 0; margin-top: 10px;
@@ -187,7 +196,7 @@ full_df = load_data()
 if st.session_state["role"] == "admin": view_df = full_df.copy()
 else: view_df = full_df[full_df["Przewoźnik"] == st.session_state["carrier_name"]].copy()
 
-# --- 4. KONFIGURACJA GANTTA (Z DODATKOWYMI ROZŁADUNKAMI) ---
+# --- 4. KONFIGURACJA GANTTA ---
 STAGES_DEF = [
     ("1. Załadunek", "Data Załadunku", "Data Załadunku", "#001a70"),       
     ("2. Trasa główna", "Data Załadunku", "Rozładunek Montaż", "#005a9c"),         
@@ -231,7 +240,7 @@ with col_title:
     st.caption(f"OPERATOR ZALOGOWANY: {st.session_state['carrier_name'].upper()} | POZIOM DOSTĘPU: {st.session_state['role'].upper()}")
 
 with col_refresh:
-    st.write("") # Margines dla wyrównania z nagłówkiem
+    st.write("") 
     if st.button("🔄 ODŚWIEŻ DANE", type="primary", use_container_width=True):
         load_data.clear()
         st.rerun()
@@ -374,7 +383,6 @@ with tabs[2]:
 
 # --- TAB 4: NOWE ZLECENIE ---
 with tabs[3]:
-    # DODANO: clear_on_submit=True
     with st.form("add_form", clear_on_submit=True):
         st.subheader("REJESTRACJA TRANSPORTU")
         

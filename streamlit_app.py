@@ -237,7 +237,6 @@ with tabs[0]:
             
             safe_barcode = re.sub(r'[^A-Z0-9]', '', num_zlec.upper()) if num_zlec else f"ESQM{index}"
             
-            # Wychwytywanie opcjonalnych rozładunków by wyświetlić na bilecie
             roz2 = row.get('Rozładunek Montaż 2')
             roz3 = row.get('Rozładunek Montaż 3')
             roz_dates = []
@@ -248,30 +247,21 @@ with tabs[0]:
             if roz_dates:
                 extra_roz_html = f"<div><span class='bp-label'>DODATKOWE ROZŁADUNKI</span><span class='bp-val'>{' | '.join(roz_dates)}</span></div>"
 
-            html_card = f"""
-<div class="bp-card">
-    <div class="bp-header">
-        <div class="bp-logo">🚛 eventySQM</div>
-        <div class="bp-flight">{awb_text}AUTO: {fmt(row['Dane Auta'])}</div>
-    </div>
-    <div class="bp-body">
-        <div class="bp-main-info">
-            <div>
-                <span class="bp-label">CEL (NAZWA TARGÓW)</span>
-                <span class="bp-val-large">{fmt(row['Nazwa Targów'])}</span>
-            </div>
-            <div class="bp-status {status_class}">{status}</div>
-        </div>
-        <div class="bp-row">
-            <div><span class="bp-label">PRZEWOŹNIK</span><span class="bp-val">{fmt(row.get('Przewoźnik'))}</span></div>
-            <div><span class="bp-label">KIEROWCA</span><span class="bp-val">{fmt(row.get('Kierowca'))}</span></div>
-            <div><span class="bp-label">TELEFON</span><span class="bp-val">{fmt(row.get('Telefon'))}</span></div>
-            <div><span class="bp-label">TYP TRANSPORTU</span><span class="bp-val">{typ_trans}</span></div>
-            {extra_roz_html}
-            <div><span class="bp-label">KWOTA</span><span class="bp-val">{fmt(row.get('Kwota'))}</span></div>
-        </div>
-        <div class="bp-barcode">*{safe_barcode}*</div>
-"""
+            # NAPRAWA RENDEROWANIA HTML: Kompresja do jednolinijkowego łańcucha znaków
+            html_card = (
+                f'<div class="bp-card">'
+                f'<div class="bp-header"><div class="bp-logo">🚛 eventySQM</div><div class="bp-flight">{awb_text}AUTO: {fmt(row["Dane Auta"])}</div></div>'
+                f'<div class="bp-body"><div class="bp-main-info"><div><span class="bp-label">CEL (NAZWA TARGÓW)</span><span class="bp-val-large">{fmt(row["Nazwa Targów"])}</span></div>'
+                f'<div class="bp-status {status_class}">{status}</div></div>'
+                f'<div class="bp-row">'
+                f'<div><span class="bp-label">PRZEWOŹNIK</span><span class="bp-val">{fmt(row.get("Przewoźnik"))}</span></div>'
+                f'<div><span class="bp-label">KIEROWCA</span><span class="bp-val">{fmt(row.get("Kierowca"))}</span></div>'
+                f'<div><span class="bp-label">TELEFON</span><span class="bp-val">{fmt(row.get("Telefon"))}</span></div>'
+                f'<div><span class="bp-label">TYP TRANSPORTU</span><span class="bp-val">{typ_trans}</span></div>'
+                f'{extra_roz_html}'
+                f'<div><span class="bp-label">KWOTA</span><span class="bp-val">{fmt(row.get("Kwota"))}</span></div>'
+                f'</div><div class="bp-barcode">*{safe_barcode}*</div>'
+            )
             st.markdown(html_card, unsafe_allow_html=True)
             
             if pd.notnull(row.get('Notatka')) and row['Notatka'] != "":
@@ -317,7 +307,6 @@ with tabs[2]:
     
     if not view_df.empty:
         fleet_data = []
-        # Uwzględnienie nowych kolumn rozładunkowych do wyznaczania maksymalnego czasu trasy
         date_columns_to_check = ['Data Załadunku', 'Rozładunek Montaż', 'Rozładunek Montaż 2', 'Rozładunek Montaż 3', 'Wjazd po Empties', 'Dostawa Empties', 'Odbiór Pełnych', 'Rozładunek Powrotny']
         
         for _, row in view_df.iterrows():

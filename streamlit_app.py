@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import plotly.express as px
@@ -101,7 +102,7 @@ st.markdown("""
         margin-top: 15px; font-family: 'Space Mono', monospace; font-size: 15px; color: #001a70;
     }
 
-    /* LOGIN STYLING */
+    /* PRZYCISKI PRIMARY (LOGOWANIE + ODŚWIEŻ) */
     div.stButton > button[kind="primary"] {
         background-color: #001a70;
         color: white; border: none; font-weight: bold; letter-spacing: 1px; border-radius: 4px; padding: 10px 0; margin-top: 10px;
@@ -210,9 +211,30 @@ def get_status(row):
 
 def fmt(val): return "" if pd.isna(val) or str(val).lower() == "nan" else str(val)
 
-# --- 5. INTERFEJS GŁÓWNY ---
-st.title("eventySQM OPS CONTROL")
-st.caption(f"OPERATOR ZALOGOWANY: {st.session_state['carrier_name'].upper()} | POZIOM DOSTĘPU: {st.session_state['role'].upper()}")
+# --- 5. AUTOMATYCZNE ODŚWIEŻANIE TŁA ---
+components.html(
+    """
+    <script>
+    setTimeout(function(){
+        window.parent.location.reload();
+    }, 300000); // 300 000 ms = 5 minut
+    </script>
+    """,
+    height=0, width=0
+)
+
+# --- 6. INTERFEJS GŁÓWNY ---
+col_title, col_refresh = st.columns([5, 1])
+
+with col_title:
+    st.title("eventySQM OPS CONTROL")
+    st.caption(f"OPERATOR ZALOGOWANY: {st.session_state['carrier_name'].upper()} | POZIOM DOSTĘPU: {st.session_state['role'].upper()}")
+
+with col_refresh:
+    st.write("") # Margines dla wyrównania z nagłówkiem
+    if st.button("🔄 ODŚWIEŻ DANE", type="primary", use_container_width=True):
+        load_data.clear()
+        st.rerun()
 
 if st.session_state["role"] == "admin":
     tabs = st.tabs(["✈️ MONITORING (LIVE)", "🗺️ MAPA TRAS", "🗓️ GRAFIK FLOTY", "➕ NOWE ZLECENIE", "✏️ EDYCJA", "📋 BAZA DANYCH", "🗑️ USUŃ"])
@@ -247,7 +269,6 @@ with tabs[0]:
             if roz_dates:
                 extra_roz_html = f"<div><span class='bp-label'>DODATKOWE ROZŁADUNKI</span><span class='bp-val'>{' | '.join(roz_dates)}</span></div>"
 
-            # NAPRAWA RENDEROWANIA HTML: Kompresja do jednolinijkowego łańcucha znaków
             html_card = (
                 f'<div class="bp-card">'
                 f'<div class="bp-header"><div class="bp-logo">🚛 eventySQM</div><div class="bp-flight">{awb_text}AUTO: {fmt(row["Dane Auta"])}</div></div>'

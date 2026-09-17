@@ -6,77 +6,100 @@ from datetime import timedelta, datetime
 import time
 import folium
 from streamlit_folium import st_folium
+import re
 
-# --- 1. KONFIGURACJA UI I STYLÓW (TEATR & CIEMNE DREWNO) ---
-st.set_page_config(page_title="VECTURA | Backstage", layout="wide", page_icon="🎭")
+# --- 1. KONFIGURACJA UI I STYLÓW (LUFTHANSA CARGO AESTHETIC) ---
+st.set_page_config(page_title="VECTURA CARGO | Ops Control", layout="wide", page_icon="✈️")
 
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Lato:wght@300;400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+39+Text&family=Inter:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap');
     
-    /* GŁÓWNE TŁO - CZERŃ I FAKTURA DREWNA */
+    /* GŁÓWNE TŁO - JASNO SZARE JAK HALA ODLOTÓW */
     .stApp { 
-        background-color: #080808 !important; 
-        background-image: url("https://www.transparenttextures.com/patterns/wood-pattern.png");
-        color: #e0e0e0;
+        background-color: #f2f4f8 !important; 
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
     }
     
-    /* TYPOGRAFIA TEATRALNA */
-    h1, h2, h3, .metric-value { 
-        font-family: 'Playfair Display', serif !important; 
-        color: #d4af37 !important; /* Stare złoto */
+    /* NAGŁÓWKI - LUFTHANSA BLUE */
+    h1, h2, h3 { color: #001a70 !important; font-weight: 700; text-transform: uppercase; letter-spacing: -0.5px;}
+    
+    /* KARTA ZLECENIA - BOARDING PASS */
+    .bp-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        margin: 20px 0 30px 0;
+        box-shadow: 0 4px 15px rgba(0, 26, 112, 0.05);
+        border-left: 10px solid #ffb612; /* Lufthansa Yellow */
+        overflow: hidden;
+    }
+    
+    .bp-header {
+        background: #001a70; /* Lufthansa Blue */
+        color: #ffffff;
+        padding: 12px 25px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 700;
         letter-spacing: 1px;
     }
-    
-    /* DREWNIANE KARTY ZLECEŃ */
-    .theater-card { 
-        background-color: #140e0b; /* Bardzo ciemny brąz/czerń */
-        background-image: linear-gradient(to bottom, rgba(20,14,11,0.9), rgba(10,7,5,0.95)), url("https://www.transparenttextures.com/patterns/retina-wood.png");
-        border: 1px solid #3e2723;
-        border-top: 6px solid #660000; /* Głęboka czerwień kurtyny */
-        border-bottom: 2px solid #d4af37; /* Złoty akcent */
-        border-radius: 4px; 
-        padding: 30px; 
-        margin: 25px 0; 
-        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.9); 
-        position: relative;
+    .bp-logo { color: #ffb612; }
+    .bp-flight { 
+        font-family: 'Space Mono', monospace; 
+        font-size: 14px; 
+        background: rgba(255, 255, 255, 0.15); 
+        padding: 4px 10px; 
+        border-radius: 4px;
     }
     
-    .vehicle-title { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; color: #fdfbf7; }
-    .title-divider { color: #d4af37; margin: 0 12px; font-weight: 300; font-style: italic; }
-
-    /* STATUSY JAKO BILETY VIP */
-    .status-badge {
-        position: absolute; top: 25px; right: 25px; padding: 5px 20px; 
-        font-family: 'Playfair Display', serif; font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
-        background: #000; border: 1px solid #d4af37; color: #d4af37;
-        box-shadow: 2px 2px 0px #3e2723;
-    }
-    .status-realizacja { border-color: #d4af37; color: #d4af37; }
-    .status-zakonczony { border-color: #4b5320; color: #78866b; } /* Zgaszona zieleń */
-    .status-oczekuje { border-color: #b7410e; color: #cc7722; } /* Rdzawa miedź */
+    .bp-body { padding: 25px; position: relative; }
     
-    /* PASEK INFORMACYJNY */
-    .info-hud { 
-        display: flex; flex-wrap: wrap; gap: 25px; margin-top: 15px; 
-        background: rgba(0, 0, 0, 0.6); padding: 15px 20px; border-radius: 2px; 
-        border-left: 2px solid #d4af37; font-family: 'Lato', sans-serif; font-size: 15px; font-weight: 400; color: #d1d1d1;
-    }
-    .info-hud span b { color: #d4af37; font-family: 'Playfair Display', serif; font-size: 13px; letter-spacing: 1px; margin-right: 5px; text-transform: uppercase;}
-    
-    /* NOTATKI JAKO SCENARIUSZ (SKRYPT) */
-    .script-log { 
-        background: #fdfbf7; padding: 15px 20px; margin-top: 20px; border-radius: 2px; 
-        font-family: 'Courier New', Courier, monospace; font-size: 15px; color: #1a1a1a;
-        border-left: 4px solid #660000; box-shadow: inset 0 0 15px rgba(0,0,0,0.1);
+    .bp-main-info {
+        display: flex; justify-content: space-between; align-items: flex-start;
+        margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px dashed #e5e7eb;
     }
     
-    /* EKRAN LOGOWANIA - WEJŚCIE DLA ARTYSTÓW */
-    .login-glass { 
-        max-width: 420px; margin: 100px auto; 
-        background-color: #120a07; background-image: url("https://www.transparenttextures.com/patterns/wood-pattern.png");
-        padding: 50px; border: 2px solid #3e2723; border-top: 8px solid #660000; border-radius: 4px; 
-        box-shadow: 0 20px 50px rgba(0,0,0,0.9); text-align: center;
+    .bp-label {
+        display: block; font-size: 11px; color: #6b7280; 
+        text-transform: uppercase; font-weight: 700; margin-bottom: 5px;
+    }
+    .bp-val-large {
+        font-size: 26px; font-weight: 700; color: #001a70; text-transform: uppercase;
+    }
+    
+    /* STATUSY LOTU */
+    .bp-status {
+        padding: 8px 16px; border-radius: 3px; font-weight: 700; 
+        font-size: 14px; text-transform: uppercase; letter-spacing: 1px;
+        font-family: 'Space Mono', monospace;
+    }
+    .status-realizacja { background: #ffb612; color: #001a70; border: 2px solid #ffb612; }
+    .status-zakonczony { background: #001a70; color: #ffffff; border: 2px solid #001a70; }
+    .status-oczekuje   { background: #ffffff; color: #001a70; border: 2px solid #001a70; }
+    
+    .bp-row { display: flex; flex-wrap: wrap; gap: 40px; margin-bottom: 15px; }
+    .bp-val { font-size: 15px; font-weight: 700; color: #111827; }
+    
+    /* KOD KRESKOWY NA BILECIE */
+    .bp-barcode {
+        font-family: 'Libre Barcode 39 Text', cursive;
+        font-size: 48px; color: #111827;
+        text-align: right; margin-top: -30px; opacity: 0.8;
+    }
+    
+    /* NOTATKI JAKO TELEKS (SSR) */
+    .ssr-remarks { 
+        background: #fef3c7; border-left: 4px solid #ffb612; padding: 12px 15px; 
+        margin-top: 15px; font-family: 'Space Mono', monospace; font-size: 13px; color: #001a70;
+    }
+    
+    /* KIOSK LOGOWANIA */
+    .checkin-kiosk { 
+        max-width: 450px; margin: 100px auto; background: #ffffff; 
+        padding: 40px; border-top: 8px solid #001a70; border-bottom: 8px solid #ffb612;
+        box-shadow: 0 10px 30px rgba(0, 26, 112, 0.1); text-align: center; border-radius: 4px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -109,12 +132,12 @@ def check_password():
 
     if "session_expiry" in st.session_state and datetime.now().timestamp() < st.session_state["session_expiry"]: return True
     if "password_correct" not in st.session_state or not st.session_state["password_correct"]:
-        st.markdown('<div class="login-glass">', unsafe_allow_html=True)
-        st.markdown("<h2>WEJŚCIE DLA ARTYSTÓW</h2><p style='color:#d4af37; font-family:Lato;'>VECTURA BACKSTAGE</p>", unsafe_allow_html=True)
-        st.text_input("Garderoba (Login):", key="username")
-        st.text_input("Kod wejścia:", type="password", on_change=password_entered, key="password")
+        st.markdown('<div class="checkin-kiosk">', unsafe_allow_html=True)
+        st.markdown("<h2 style='margin-bottom: 5px;'>CARGO CHECK-IN</h2><p style='color:#6b7280; font-size:14px; font-weight:bold; margin-bottom: 25px;'>SECURE AIRLINE TERMINAL</p>", unsafe_allow_html=True)
+        st.text_input("BOOKING REFERENCE (LOGIN):", key="username")
+        st.text_input("PIN CODE:", type="password", on_change=password_entered, key="password")
         if "password_correct" in st.session_state and not st.session_state["password_correct"]:
-            st.error("❌ Odmowa dostępu na zaplecze")
+            st.error("❌ INVALID REFERENCE OR PIN")
         st.markdown('</div>', unsafe_allow_html=True)
         return False
     return True
@@ -146,71 +169,98 @@ full_df = load_data()
 if st.session_state["role"] == "admin": view_df = full_df.copy()
 else: view_df = full_df[full_df["Przewoźnik"] == st.session_state["carrier_name"]].copy()
 
-# --- 4. KONFIGURACJA GANTTA (TEATRALNA PALETA BARW) ---
+# --- 4. KONFIGURACJA GANTTA (LUFTHANSA COLORS) ---
 STAGES_DEF = [
-    ("1. Załadunek", "Data Załadunku", "Data Załadunku", "#4a3c31"),       # Brązowy dąb
-    ("2. Trasa", "Data Załadunku", "Rozładunek Montaż", "#5c4033"),         # Ciemny mahoń
-    ("3. Montaż/Postój", "Rozładunek Montaż", "Wjazd po Empties", "#8b0000"),# Czerwień kurtyny
-    ("4. Postój z Empties", "Wjazd po Empties", "Dostawa Empties", "#660000"),# Głęboki burgund
-    ("5. Oczekiwanie na Powrót", "Dostawa Empties", "Odbiór Pełnych", "#b8860b"), # Ciemne złoto
-    ("6. Trasa Powrót", "Odbiór Pełnych", "Rozładunek Powrotny", "#556b2f"),  # Zgaszona oliwka
-    ("7. Rozładunek SQM", "Rozładunek Powrotny", "Rozładunek Powrotny", "#2f4f4f") # Ciemny łupek
+    ("1. Załadunek", "Data Załadunku", "Data Załadunku", "#001a70"),       # LH Blue
+    ("2. Trasa", "Data Załadunku", "Rozładunek Montaż", "#005a9c"),         # Mid Blue
+    ("3. Montaż/Postój", "Rozładunek Montaż", "Wjazd po Empties", "#9ca3af"),# Solid Grey
+    ("4. Postój z Empties", "Wjazd po Empties", "Dostawa Empties", "#d1d5db"),# Light Grey
+    ("5. Oczekiwanie na Powrót", "Dostawa Empties", "Odbiór Pełnych", "#ffb612"), # LH Yellow
+    ("6. Trasa Powrót", "Odbiór Pełnych", "Rozładunek Powrotny", "#e6a100"),  # Dark Yellow
+    ("7. Rozładunek SQM", "Rozładunek Powrotny", "Rozładunek Powrotny", "#001a70") # LH Blue
 ]
 
 def get_status(row):
     now = pd.Timestamp(datetime.now().date())
     if pd.isnull(row.get('Data Załadunku')): return "BRAK DANYCH"
     typ = row.get('Typ Transportu', 'Pełny Cykl (z postojem)')
-    if typ == "Tylko Dostawa" and pd.notnull(row.get('Rozładunek Montaż')) and row['Rozładunek Montaż'].date() < now.date(): return "ZAKOŃCZONY"
-    if typ != "Tylko Dostawa" and pd.notnull(row.get('Rozładunek Powrotny')) and row['Rozładunek Powrotny'].date() < now.date(): return "ZAKOŃCZONY"
-    if row['Data Załadunku'].date() > now.date(): return "OCZEKUJE"
-    return "W REALIZACJI"
+    if typ == "Tylko Dostawa" and pd.notnull(row.get('Rozładunek Montaż')) and row['Rozładunek Montaż'].date() < now.date(): return "ARRIVED"
+    if typ != "Tylko Dostawa" and pd.notnull(row.get('Rozładunek Powrotny')) and row['Rozładunek Powrotny'].date() < now.date(): return "ARRIVED"
+    if row['Data Załadunku'].date() > now.date(): return "SCHEDULED"
+    return "IN TRANSIT"
 
 def fmt(val): return "" if pd.isna(val) or str(val).lower() == "nan" else str(val)
 
 # --- 5. INTERFEJS GŁÓWNY ---
-st.title("VECTURA BACKSTAGE")
-st.caption(f"OBSŁUGA SCENY: {st.session_state['carrier_name'].upper()} | ROLA: {st.session_state['role'].upper()}")
+st.title("VECTURA OPS CONTROL")
+st.caption(f"OPERATOR: {st.session_state['carrier_name'].upper()} | ACCESS LEVEL: {st.session_state['role'].upper()}")
 
 if st.session_state["role"] == "admin":
-    tabs = st.tabs(["🎭 SCENA GŁÓWNA", "🗺️ MAPA TRAS", "➕ NOWA INSCENIZACJA", "⚙️ EDYCJA", "🗄️ ARCHIWUM", "🗑️ KOSZ"])
+    tabs = st.tabs(["✈️ DEPARTURES (LIVE)", "🗺️ FLIGHT RADAR", "➕ NEW BOOKING", "✏️ MANAGE BOOKING", "📋 PASSENGER MANIFEST", "🗑️ CANCEL FLIGHT"])
 else:
-    tabs = st.tabs(["🎭 SCENA GŁÓWNA", "🗺️ MAPA TRAS", "➕ NOWA INSCENIZACJA", "⚙️ EDYCJA", "🗄️ ARCHIWUM"])
+    tabs = st.tabs(["✈️ DEPARTURES (LIVE)", "🗺️ FLIGHT RADAR", "➕ NEW BOOKING", "✏️ MANAGE BOOKING", "📋 PASSENGER MANIFEST"])
 
-# --- TAB 1: MONITORING ---
+# --- TAB 1: DEPARTURES (LIVE) ---
 with tabs[0]:
     if not view_df.empty:
         col1, col2, col3 = st.columns(3)
-        col1.metric("Wszystkie Zlecenia", len(view_df))
-        col2.metric("W Trakcie Realizacji", len([s for s in view_df.apply(get_status, axis=1) if s == "W REALIZACJI"]))
-        col3.metric("Kurtyna Opuszczona (Koniec)", len([s for s in view_df.apply(get_status, axis=1) if s == "ZAKOŃCZONY"]))
+        col1.metric("TOTAL BOOKINGS", len(view_df))
+        col2.metric("AIRBORNE / IN TRANSIT", len([s for s in view_df.apply(get_status, axis=1) if s == "IN TRANSIT"]))
+        col3.metric("LANDED / COMPLETED", len([s for s in view_df.apply(get_status, axis=1) if s == "ARRIVED"]))
         
         for index, row in view_df.iterrows():
             status = get_status(row)
             typ_trans = fmt(row.get('Typ Transportu'))
             
-            status_class = "status-realizacja" if status == "W REALIZACJI" else ("status-zakonczony" if status == "ZAKOŃCZONY" else "status-oczekuje")
+            status_class = "status-realizacja" if status == "IN TRANSIT" else ("status-zakonczony" if status == "ARRIVED" else "status-oczekuje")
+            
+            # Bezpieczny kod kreskowy (tylko alfanumeryczne)
+            safe_barcode = re.sub(r'[^A-Z0-9]', '', str(row['Dane Auta']).upper())
+            if not safe_barcode: safe_barcode = f"VECTURA{index}"
 
             st.markdown(f'''
-                <div class="theater-card">
-                    <div>
-                        <span class="vehicle-title">{fmt(row['Dane Auta'])}</span>
-                        <span class="title-divider">~</span>
-                        <span class="vehicle-title" style="color:#b5b5b5; font-size: 24px; font-weight:400;">{fmt(row['Nazwa Targów'])}</span>
+                <div class="bp-card">
+                    <div class="bp-header">
+                        <div class="bp-logo">✈ VECTURA CARGO</div>
+                        <div class="bp-flight">FLIGHT / VEHICLE: {fmt(row['Dane Auta'])}</div>
                     </div>
-                    <div class="status-badge {status_class}">{status}</div>
-                    
-                    <div class="info-hud">
-                        <span><b>Przewoźnik:</b> {fmt(row.get('Przewoźnik'))}</span>
-                        <span><b>Tryb Scenariusza:</b> {typ_trans}</span>
-                        <span><b>Kierowca:</b> {fmt(row.get('Kierowca'))}</span>
-                        <span><b>Telefon:</b> {fmt(row.get('Telefon'))}</span>
-                        <span><b>Kwota:</b> {fmt(row.get('Kwota'))}</span>
-                    </div>
+                    <div class="bp-body">
+                        <div class="bp-main-info">
+                            <div>
+                                <span class="bp-label">FINAL DESTINATION</span>
+                                <span class="bp-val-large">{fmt(row['Nazwa Targów'])}</span>
+                            </div>
+                            <div class="bp-status {status_class}">{status}</div>
+                        </div>
+                        
+                        <div class="bp-row">
+                            <div>
+                                <span class="bp-label">CARRIER</span>
+                                <span class="bp-val">{fmt(row.get('Przewoźnik'))}</span>
+                            </div>
+                            <div>
+                                <span class="bp-label">PASSENGER (DRIVER)</span>
+                                <span class="bp-val">{fmt(row.get('Kierowca'))}</span>
+                            </div>
+                            <div>
+                                <span class="bp-label">CONTACT INFO</span>
+                                <span class="bp-val">{fmt(row.get('Telefon'))}</span>
+                            </div>
+                            <div>
+                                <span class="bp-label">CLASS (TYPE)</span>
+                                <span class="bp-val">{typ_trans}</span>
+                            </div>
+                            <div>
+                                <span class="bp-label">FARE</span>
+                                <span class="bp-val">{fmt(row.get('Kwota'))}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="bp-barcode">*{safe_barcode}*</div>
             ''', unsafe_allow_html=True)
             
             if pd.notnull(row.get('Notatka')) and row['Notatka'] != "":
-                st.markdown(f'<div class="script-log"><b>[Notatka Reżysera]</b><br>{row["Notatka"]}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="ssr-remarks"><b>SSR / REMARKS:</b> {row["Notatka"]}</div>', unsafe_allow_html=True)
             
             single_gantt_df = []
             for stage, start_col, end_col, color in STAGES_DEF:
@@ -223,44 +273,44 @@ with tabs[0]:
                     single_gantt_df.append({"Projekt": row['Nazwa Targów'], "Start": s_date, "Finish": finish, "Etap": stage, "Kolor": color})
             
             if single_gantt_df:
-                fig = px.timeline(pd.DataFrame(single_gantt_df), x_start="Start", x_end="Finish", y="Projekt", color="Etap", template="plotly_dark", color_discrete_map={s[0]: s[3] for s in STAGES_DEF})
-                fig.add_vline(x=datetime.now().timestamp() * 1000, line_dash="dash", line_width=2, line_color="#d4af37") # Złota linia "DZIŚ"
-                fig.update_xaxes(dtick="D1", tickformat="%d.%m", side="top", showgrid=True, gridcolor='rgba(255,255,255,0.05)')
+                fig = px.timeline(pd.DataFrame(single_gantt_df), x_start="Start", x_end="Finish", y="Projekt", color="Etap", template="plotly_white", color_discrete_map={s[0]: s[3] for s in STAGES_DEF})
+                fig.add_vline(x=datetime.now().timestamp() * 1000, line_dash="solid", line_width=2, line_color="#ef4444") 
+                fig.update_xaxes(dtick="D1", tickformat="%d.%m", side="top", showgrid=True, gridcolor='#e5e7eb')
                 fig.update_layout(height=170, margin=dict(t=30, b=0, l=0, r=0), showlegend=True, yaxis={'visible': False}, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig, use_container_width=True, key=f"gantt_{index}")
                 
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div></div>', unsafe_allow_html=True)
     else:
-        st.info("Scena jest pusta.")
+        st.info("NO ACTIVE FLIGHTS DEPARTING.")
 
-# --- TAB 2: MAPA TRAS ---
+# --- TAB 2: FLIGHT RADAR ---
 with tabs[1]:
-    st.markdown("<h3 style='color:#d4af37; font-family:Playfair Display;'>🗺️ MAPA TRAS ARTYSTYCZNYCH</h3>", unsafe_allow_html=True)
-    m = folium.Map(location=[52.0, 19.0], zoom_start=4, tiles="CartoDB dark_matter")
+    st.markdown("### 🗺️ GLOBAL FLIGHT TRACKER")
+    m = folium.Map(location=[52.0, 19.0], zoom_start=4, tiles="CartoDB positron")
     st_folium(m, width=1200, height=450)
 
-# --- TAB 3: NOWE ZLECENIE ---
+# --- TAB 3: NEW BOOKING ---
 with tabs[2]:
     with st.form("add_form"):
-        st.subheader("DODAJ NOWĄ INSCENIZACJĘ")
+        st.subheader("ISSUE NEW TICKET")
         c1, c2, c3 = st.columns(3)
-        nt = c1.text_input("Wydarzenie (Nazwa Targów)*")
+        nt = c1.text_input("Destination (Event)*")
         
-        if st.session_state["role"] == "admin": przew = c2.text_input("Przewoźnik*")
-        else: przew = st.session_state["carrier_name"]; c2.text_input("Przewoźnik", value=przew, disabled=True)
+        if st.session_state["role"] == "admin": przew = c2.text_input("Carrier*")
+        else: przew = st.session_state["carrier_name"]; c2.text_input("Carrier", value=przew, disabled=True)
             
-        kw = c3.text_input("Budżet (Kwota)")
-        da = c1.text_input("Tablice Rejestracyjne*")
-        ki = c2.text_input("Kierowca")
-        te = c3.text_input("Telefon")
-        t_type = st.selectbox("Rodzaj transportu", ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"])
-        no = st.text_area("Szczegóły / Skrypt notatki")
+        kw = c3.text_input("Fare (Amount)")
+        da = c1.text_input("Flight / Vehicle Reg.*")
+        ki = c2.text_input("Passenger (Driver)")
+        te = c3.text_input("Contact")
+        t_type = st.selectbox("Booking Class (Type)", ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"])
+        no = st.text_area("SSR / Special Remarks")
         
         st.divider()
-        st.markdown("### 🗓️ HARMONOGRAM CZASOWY")
+        st.markdown("### 🗓️ FLIGHT SCHEDULE")
         col1, col2 = st.columns(2)
-        d_zal = col1.date_input("Załadunek SQM")
-        d_roz_m = col2.date_input("Rozładunek Montaż (Dostawa)")
+        d_zal = col1.date_input("Departure SQM (Załadunek)")
+        d_roz_m = col2.date_input("Arrival (Rozładunek Montaż)")
         d_wj_e, d_do_e, d_od_p, d_ro_p = None, None, None, None
         
         if t_type != "Tylko Dostawa":
@@ -270,9 +320,9 @@ with tabs[2]:
                 d_do_e = col4.date_input("Dostawa Empties")
             col5, col6 = st.columns(2)
             d_od_p = col5.date_input("Odbiór Pełnych")
-            d_ro_p = col6.date_input("Rozładunek SQM (powrót)")
+            d_ro_p = col6.date_input("Return Arrival (Rozładunek SQM)")
 
-        if st.form_submit_button("ZAPISZ W SCENARIUSZU"):
+        if st.form_submit_button("CONFIRM BOOKING"):
             if nt and da and przew:
                 new_data = {
                     "Nazwa Targów": nt, "Przewoźnik": przew, "Logistyk": "Admin", "Kwota": kw, 
@@ -285,13 +335,13 @@ with tabs[2]:
                 }
                 combined = pd.concat([full_df[REQUIRED_COLS], pd.DataFrame([new_data])], ignore_index=True)
                 conn.update(worksheet="VECTURA", data=combined)
-                st.success("Dodano do systemu."); time.sleep(1); st.rerun()
+                st.success("TICKET ISSUED."); time.sleep(1); st.rerun()
 
-# --- TAB 4: EDYCJA ---
+# --- TAB 4: MANAGE BOOKING ---
 with tabs[3]:
     if not view_df.empty:
         view_df['key'] = view_df['Nazwa Targów'].astype(str) + " | " + view_df['Dane Auta'].astype(str)
-        sel = st.selectbox("Wybierz zlecenie do korekty:", view_df['key'].unique())
+        sel = st.selectbox("Select Flight to Manage:", view_df['key'].unique())
         
         full_df['key'] = full_df['Nazwa Targów'].astype(str) + " | " + full_df['Dane Auta'].astype(str)
         real_idx = full_df[full_df['key'] == sel].index[0]
@@ -299,33 +349,33 @@ with tabs[3]:
         
         with st.form("edit_form"):
             c1, c2, c3 = st.columns(3)
-            e_nt = c1.text_input("Nazwa Targów", r['Nazwa Targów'])
+            e_nt = c1.text_input("Destination (Event)", r['Nazwa Targów'])
             
-            if st.session_state["role"] == "admin": e_przew = c2.text_input("Przewoźnik", r['Przewoźnik'])
-            else: e_przew = st.session_state["carrier_name"]; c2.text_input("Przewoźnik", value=e_przew, disabled=True)
+            if st.session_state["role"] == "admin": e_przew = c2.text_input("Carrier", r['Przewoźnik'])
+            else: e_przew = st.session_state["carrier_name"]; c2.text_input("Carrier", value=e_przew, disabled=True)
             
-            e_kw = c3.text_input("Kwota", r['Kwota'])
-            e_da = c1.text_input("Dane Auta", r['Dane Auta'])
-            e_ki = c2.text_input("Kierowca", r['Kierowca'])
-            e_te = c3.text_input("Telefon", r['Telefon'])
-            e_typ = st.selectbox("Typ transportu", ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"], 
+            e_kw = c3.text_input("Fare", r['Kwota'])
+            e_da = c1.text_input("Flight / Vehicle Reg.", r['Dane Auta'])
+            e_ki = c2.text_input("Passenger (Driver)", r['Kierowca'])
+            e_te = c3.text_input("Contact", r['Telefon'])
+            e_typ = st.selectbox("Booking Class (Type)", ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"], 
                                  index=["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"].index(r['Typ Transportu']) if r['Typ Transportu'] in ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"] else 0)
-            e_no = st.text_area("Szczegóły / Skrypt notatki", r['Notatka'])
+            e_no = st.text_area("SSR / Special Remarks", r['Notatka'])
             
             def dv(v): return v.date() if pd.notnull(v) else datetime.now().date()
             
             st.divider()
             ce1, ce2 = st.columns(2)
-            ed_zal = ce1.date_input("Załadunek SQM", dv(r['Data Załadunku']))
-            ed_roz_m = ce2.date_input("Rozładunek Montaż", dv(r['Rozładunek Montaż']))
+            ed_zal = ce1.date_input("Departure SQM (Załadunek)", dv(r['Data Załadunku']))
+            ed_roz_m = ce2.date_input("Arrival (Rozładunek Montaż)", dv(r['Rozładunek Montaż']))
             ce3, ce4 = st.columns(2)
             ed_wj_e = ce3.date_input("Wjazd po Empties", dv(r['Wjazd po Empties']))
             ed_do_e = ce4.date_input("Dostawa Empties", dv(r['Dostawa Empties']))
             ce5, ce6 = st.columns(2)
             ed_od_p = ce5.date_input("Odbiór Pełnych", dv(r['Odbiór Pełnych']))
-            ed_ro_p = ce6.date_input("Rozładunek SQM (powrót)", dv(r['Rozładunek Powrotny']))
+            ed_ro_p = ce6.date_input("Return Arrival (Rozładunek SQM)", dv(r['Rozładunek Powrotny']))
 
-            if st.form_submit_button("NANEŚ POPRAWKI"):
+            if st.form_submit_button("UPDATE MANIFEST"):
                 full_df.loc[real_idx, ["Nazwa Targów", "Przewoźnik", "Kwota", "Dane Auta", "Kierowca", "Telefon", "Typ Transportu", "Notatka"]] = [e_nt, e_przew, e_kw, e_da, e_ki, e_te, e_typ, e_no]
                 full_df.loc[real_idx, ["Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = [pd.to_datetime(ed_zal), pd.to_datetime(ed_zal), pd.to_datetime(ed_roz_m), pd.to_datetime(ed_od_p), pd.to_datetime(ed_od_p), pd.to_datetime(ed_ro_p)]
                 full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties"]] = [pd.to_datetime(ed_wj_e), pd.to_datetime(ed_do_e)]
@@ -334,7 +384,7 @@ with tabs[3]:
                 elif e_typ == "Tylko Dostawa": full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = None
                 
                 conn.update(worksheet="VECTURA", data=full_df[REQUIRED_COLS])
-                st.success("Zmiany naniesione."); time.sleep(1); st.rerun()
+                st.success("FLIGHT DATA UPDATED."); time.sleep(1); st.rerun()
 
 # --- TAB 5: BAZA ---
 with tabs[4]: st.dataframe(view_df[REQUIRED_COLS], use_container_width=True)
@@ -344,7 +394,7 @@ if st.session_state["role"] == "admin":
     with tabs[5]:
         if not full_df.empty:
             full_df['key'] = full_df['Nazwa Targów'].astype(str) + " | " + full_df['Dane Auta'].astype(str)
-            target = st.selectbox("Wybierz zlecenie do usunięcia:", full_df['key'].unique(), key="del_sel")
-            if st.button("USUNĄĆ Z ARCHIWUM", type="primary"):
+            target = st.selectbox("Select Flight to Cancel:", full_df['key'].unique(), key="del_sel")
+            if st.button("CANCEL FLIGHT", type="primary"):
                 conn.update(worksheet="VECTURA", data=full_df[full_df['key'] != target][REQUIRED_COLS])
-                st.success("Zlecenie usunięte na stałe."); time.sleep(1); st.rerun()
+                st.success("FLIGHT CANCELLED."); time.sleep(1); st.rerun()

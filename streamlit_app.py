@@ -9,7 +9,7 @@ from streamlit_folium import st_folium
 import re
 
 # --- 1. KONFIGURACJA UI I STYLÓW (LUFTHANSA CARGO + PL TERMINOLOGIA) ---
-st.set_page_config(page_title="VECTURA CARGO | Ops Control", layout="wide", page_icon="✈️")
+st.set_page_config(page_title="eventySQM | Ops Control", layout="wide", page_icon="✈️")
 
 st.markdown("""
     <style>
@@ -133,7 +133,7 @@ def check_password():
     if "session_expiry" in st.session_state and datetime.now().timestamp() < st.session_state["session_expiry"]: return True
     if "password_correct" not in st.session_state or not st.session_state["password_correct"]:
         st.markdown('<div class="checkin-kiosk">', unsafe_allow_html=True)
-        st.markdown("<h2 style='margin-bottom: 5px;'>TERMINAL VECTURA</h2><p style='color:#6b7280; font-size:14px; font-weight:bold; margin-bottom: 25px;'>SECURE LOGISTICS PORTAL</p>", unsafe_allow_html=True)
+        st.markdown("<h2 style='margin-bottom: 5px;'>TERMINAL eventySQM</h2><p style='color:#6b7280; font-size:14px; font-weight:bold; margin-bottom: 25px;'>SECURE LOGISTICS PORTAL</p>", unsafe_allow_html=True)
         st.text_input("Identyfikator (Login):", key="username")
         st.text_input("Kod dostępu (PIN):", type="password", on_change=password_entered, key="password")
         if "password_correct" in st.session_state and not st.session_state["password_correct"]:
@@ -192,7 +192,7 @@ def get_status(row):
 def fmt(val): return "" if pd.isna(val) or str(val).lower() == "nan" else str(val)
 
 # --- 5. INTERFEJS GŁÓWNY ---
-st.title("VECTURA OPS CONTROL")
+st.title("eventySQM OPS CONTROL")
 st.caption(f"OPERATOR ZALOGOWANY: {st.session_state['carrier_name'].upper()} | POZIOM DOSTĘPU: {st.session_state['role'].upper()}")
 
 if st.session_state["role"] == "admin":
@@ -217,12 +217,12 @@ with tabs[0]:
             awb_text = f"AWB/REF: <b>{num_zlec}</b> &nbsp;|&nbsp; " if num_zlec else ""
             
             safe_barcode = re.sub(r'[^A-Z0-9]', '', str(row['Dane Auta']).upper())
-            if not safe_barcode: safe_barcode = f"VECTURA{index}"
+            if not safe_barcode: safe_barcode = f"ESQM{index}"
 
             st.markdown(f'''
                 <div class="bp-card">
                     <div class="bp-header">
-                        <div class="bp-logo">✈ VECTURA CARGO</div>
+                        <div class="bp-logo">✈ eventySQM</div>
                         <div class="bp-flight">{awb_text}AUTO: {fmt(row['Dane Auta'])}</div>
                     </div>
                     <div class="bp-body">

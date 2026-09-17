@@ -8,7 +8,7 @@ import folium
 from streamlit_folium import st_folium
 import re
 
-# --- 1. UI CONFIGURATION & STYLING ---
+# --- 1. KONFIGURACJA UI I STYLÓW (LUFTHANSA CARGO + PL TERMINOLOGIA) ---
 st.set_page_config(page_title="eventySQM | Ops Control", layout="wide", page_icon="🚛")
 
 st.markdown("""
@@ -51,7 +51,7 @@ st.markdown("""
         font-weight: 700;
         letter-spacing: 1px;
     }
-    .bp-logo { color: #ffb612; }
+    .bp-logo { color: #ffb612; font-weight: 700; }
     .bp-flight { 
         font-family: 'Space Mono', monospace; 
         font-size: 14px; 
@@ -162,7 +162,6 @@ def check_password():
         _, col_login, _ = st.columns([1.5, 2, 1.5])
         
         with col_login:
-            # Replaced text header with an SVG Truck icon using Lufthansa colors
             st.markdown("""
             <div style="background: #ffffff; padding: 40px 40px 10px 40px; border-top: 8px solid #001a70; border-radius: 4px 4px 0 0; text-align: center; box-shadow: 0 10px 30px rgba(0, 26, 112, 0.05); margin-bottom: -15px;">
                 <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#001a70" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 15px;">
@@ -176,7 +175,6 @@ def check_password():
             </div>
             """, unsafe_allow_html=True)
             
-            # Form container
             with st.container():
                 st.text_input("Identyfikator (Login):", key="username")
                 st.text_input("Kod dostępu (PIN):", type="password", key="password")
@@ -269,46 +267,31 @@ with tabs[0]:
             safe_barcode = re.sub(r'[^A-Z0-9]', '', str(row['Dane Auta']).upper())
             if not safe_barcode: safe_barcode = f"ESQM{index}"
 
-            st.markdown(f'''
-                <div class="bp-card">
-                    <div class="bp-header">
-                        <div class="bp-logo">🚛 eventySQM</div>
-                        <div class="bp-flight">{awb_text}AUTO: {fmt(row['Dane Auta'])}</div>
-                    </div>
-                    <div class="bp-body">
-                        <div class="bp-main-info">
-                            <div>
-                                <span class="bp-label">CEL (NAZWA TARGÓW)</span>
-                                <span class="bp-val-large">{fmt(row['Nazwa Targów'])}</span>
-                            </div>
-                            <div class="bp-status {status_class}">{status}</div>
-                        </div>
-                        
-                        <div class="bp-row">
-                            <div>
-                                <span class="bp-label">PRZEWOŹNIK</span>
-                                <span class="bp-val">{fmt(row.get('Przewoźnik'))}</span>
-                            </div>
-                            <div>
-                                <span class="bp-label">KIEROWCA</span>
-                                <span class="bp-val">{fmt(row.get('Kierowca'))}</span>
-                            </div>
-                            <div>
-                                <span class="bp-label">TELEFON</span>
-                                <span class="bp-val">{fmt(row.get('Telefon'))}</span>
-                            </div>
-                            <div>
-                                <span class="bp-label">TYP TRANSPORTU</span>
-                                <span class="bp-val">{typ_trans}</span>
-                            </div>
-                            <div>
-                                <span class="bp-label">KWOTA</span>
-                                <span class="bp-val">{fmt(row.get('Kwota'))}</span>
-                            </div>
-                        </div>
-                        
-                        <div class="bp-barcode">*{safe_barcode}*</div>
-            ''', unsafe_allow_html=True)
+            # Wyrównany do lewej HTML zapobiega traktowaniu go jako kod (Markdown Code Block)
+            html_card = f"""
+<div class="bp-card">
+    <div class="bp-header">
+        <div class="bp-logo">🚛 eventySQM</div>
+        <div class="bp-flight">{awb_text}AUTO: {fmt(row['Dane Auta'])}</div>
+    </div>
+    <div class="bp-body">
+        <div class="bp-main-info">
+            <div>
+                <span class="bp-label">CEL (NAZWA TARGÓW)</span>
+                <span class="bp-val-large">{fmt(row['Nazwa Targów'])}</span>
+            </div>
+            <div class="bp-status {status_class}">{status}</div>
+        </div>
+        <div class="bp-row">
+            <div><span class="bp-label">PRZEWOŹNIK</span><span class="bp-val">{fmt(row.get('Przewoźnik'))}</span></div>
+            <div><span class="bp-label">KIEROWCA</span><span class="bp-val">{fmt(row.get('Kierowca'))}</span></div>
+            <div><span class="bp-label">TELEFON</span><span class="bp-val">{fmt(row.get('Telefon'))}</span></div>
+            <div><span class="bp-label">TYP TRANSPORTU</span><span class="bp-val">{typ_trans}</span></div>
+            <div><span class="bp-label">KWOTA</span><span class="bp-val">{fmt(row.get('Kwota'))}</span></div>
+        </div>
+        <div class="bp-barcode">*{safe_barcode}*</div>
+"""
+            st.markdown(html_card, unsafe_allow_html=True)
             
             if pd.notnull(row.get('Notatka')) and row['Notatka'] != "":
                 st.markdown(f'<div class="ssr-remarks"><b>UWAGI OPERACYJNE:</b> {row["Notatka"]}</div>', unsafe_allow_html=True)

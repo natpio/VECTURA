@@ -102,15 +102,6 @@ st.markdown("""
         margin-top: 15px; font-family: 'Space Mono', monospace; font-size: 15px; color: #001a70;
     }
 
-    /* POPRAWKA WIDOCZNOŚCI STRZAŁEK W KALENDARZU (DATE_INPUT) */
-    div[data-baseweb="calendar"] button {
-        color: #001a70 !important;
-        font-weight: bold !important;
-    }
-    div[data-baseweb="calendar"] svg {
-        fill: #001a70 !important;
-    }
-
     /* PRZYCISKI PRIMARY */
     div.stButton > button[kind="primary"] {
         background-color: #001a70;
@@ -219,6 +210,15 @@ def get_status(row):
     return "W REALIZACJI"
 
 def fmt(val): return "" if pd.isna(val) or str(val).lower() == "nan" else str(val)
+
+def parse_date_input(val_str):
+    """Pomocnicza funkcja do bezpiecznej konwersji wpisanej daty RRRR-MM-DD"""
+    if not val_str or not val_str.strip():
+        return None
+    try:
+        return pd.to_datetime(val_str.strip(), errors='coerce')
+    except:
+        return None
 
 # --- 5. AUTOMATYCZNE ODŚWIEŻANIE TŁA ---
 components.html(
@@ -402,41 +402,41 @@ with tabs[3]:
         no = st.text_area("Notatka / Sloty")
         
         st.divider()
-        st.markdown("### 🗓️ HARMONOGRAM ROZŁADUNKÓW")
+        st.markdown("### 🗓️ HARMONOGRAM ROZŁADUNKÓW (WPISZ RRRR-MM-DD)")
         col1, col2 = st.columns(2)
-        d_zal = col1.date_input("Załadunek SQM", value=None)
-        d_roz_m = col2.date_input("Rozładunek 1 (Główny)", value=None)
+        d_zal = col1.text_input("Załadunek SQM (np. 2026-09-15)", value="")
+        d_roz_m = col2.text_input("Rozładunek 1 (Główny) (np. 2026-09-17)", value="")
         
         col2a, col2b = st.columns(2)
-        d_roz_m2 = col2a.date_input("Rozładunek 2 (Opcjonalnie)", value=None)
-        d_roz_m3 = col2b.date_input("Rozładunek 3 (Opcjonalnie)", value=None)
+        d_roz_m2 = col2a.text_input("Rozładunek 2 (Opcjonalnie)", value="")
+        d_roz_m3 = col2b.text_input("Rozładunek 3 (Opcjonalnie)", value="")
         
-        d_wj_e, d_do_e, d_od_p, d_ro_p = None, None, None, None
+        d_wj_e, d_do_e, d_od_p, d_ro_p = "", "", "", ""
         
         if t_type != "Tylko Dostawa":
             st.divider()
             st.markdown("### 🗓️ HARMONOGRAM POWROTÓW / EMPTIES")
             col3, col4 = st.columns(2)
             if t_type == "Pełny Cykl (z postojem)":
-                d_wj_e = col3.date_input("Wjazd po Empties", value=None)
-                d_do_e = col4.date_input("Dostawa Empties", value=None)
+                d_wj_e = col3.text_input("Wjazd po Empties", value="")
+                d_do_e = col4.text_input("Dostawa Empties", value="")
             col5, col6 = st.columns(2)
-            d_od_p = col5.date_input("Odbiór Pełnych", value=None)
-            d_ro_p = col6.date_input("Rozładunek SQM (powrót)", value=None)
+            d_od_p = col5.text_input("Odbiór Pełnych", value="")
+            d_ro_p = col6.text_input("Rozładunek SQM (powrót)", value="")
 
         if st.form_submit_button("DODAJ DO SYSTEMU"):
             if nt and da and przew:
                 new_data = {
                     "Numer Zlecenia": nz, "Nazwa Targów": nt, "Przewoźnik": przew, "Logistyk": "Admin", "Kwota": kw, 
                     "Dane Auta": da, "Kierowca": ki, "Telefon": te, "Typ Transportu": t_type, "Notatka": no,
-                    "Data Załadunku": pd.to_datetime(d_zal) if d_zal else None, "Trasa Start": pd.to_datetime(d_zal) if d_zal else None, 
-                    "Rozładunek Montaż": pd.to_datetime(d_roz_m) if d_roz_m else None,
-                    "Rozładunek Montaż 2": pd.to_datetime(d_roz_m2) if d_roz_m2 else None,
-                    "Rozładunek Montaż 3": pd.to_datetime(d_roz_m3) if d_roz_m3 else None,
-                    "Wjazd po Empties": pd.to_datetime(d_wj_e) if d_wj_e else None,
-                    "Dostawa Empties": pd.to_datetime(d_do_e) if d_do_e else None,
-                    "Odbiór Pełnych": pd.to_datetime(d_od_p) if d_od_p else None,
-                    "Rozładunek Powrotny": pd.to_datetime(d_ro_p) if d_ro_p else None
+                    "Data Załadunku": parse_date_input(d_zal), "Trasa Start": parse_date_input(d_zal), 
+                    "Rozładunek Montaż": parse_date_input(d_roz_m),
+                    "Rozładunek Montaż 2": parse_date_input(d_roz_m2),
+                    "Rozładunek Montaż 3": parse_date_input(d_roz_m3),
+                    "Wjazd po Empties": parse_date_input(d_wj_e),
+                    "Dostawa Empties": parse_date_input(d_do_e),
+                    "Odbiór Pełnych": parse_date_input(d_od_p),
+                    "Rozładunek Powrotny": parse_date_input(d_ro_p)
                 }
                 combined = pd.concat([full_df[REQUIRED_COLS], pd.DataFrame([new_data])], ignore_index=True)
                 conn.update(worksheet="VECTURA", data=combined)
@@ -469,33 +469,42 @@ with tabs[4]:
                                  index=["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"].index(r['Typ Transportu']) if r['Typ Transportu'] in ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"] else 0)
             e_no = st.text_area("Notatka", r['Notatka'])
             
-            def dv(v): return v.date() if pd.notnull(v) else None
-            def dv_req(v): return v.date() if pd.notnull(v) else datetime.now().date()
+            def fmt_d(v): return v.strftime('%Y-%m-%d') if pd.notnull(v) else ""
             
             st.divider()
-            st.markdown("### 🗓️ HARMONOGRAM ROZŁADUNKÓW")
+            st.markdown("### 🗓️ HARMONOGRAM ROZŁADUNKÓW (FORMAT RRRR-MM-DD)")
             ce1, ce2 = st.columns(2)
-            ed_zal = ce1.date_input("Załadunek SQM", dv_req(r['Data Załadunku']))
-            ed_roz_m = ce2.date_input("Rozładunek 1 (Główny)", dv_req(r['Rozładunek Montaż']))
+            ed_zal = ce1.text_input("Załadunek SQM", value=fmt_d(r.get('Data Załadunku')))
+            ed_roz_m = ce2.text_input("Rozładunek 1 (Główny)", value=fmt_d(r.get('Rozładunek Montaż')))
             
             ce2a, ce2b = st.columns(2)
-            ed_roz_m2 = ce2a.date_input("Rozładunek 2 (Opcjonalnie)", value=dv(r.get('Rozładunek Montaż 2')))
-            ed_roz_m3 = ce2b.date_input("Rozładunek 3 (Opcjonalnie)", value=dv(r.get('Rozładunek Montaż 3')))
+            ed_roz_m2 = ce2a.text_input("Rozładunek 2 (Opcjonalnie)", value=fmt_d(r.get('Rozładunek Montaż 2')))
+            ed_roz_m3 = ce2b.text_input("Rozładunek 3 (Opcjonalnie)", value=fmt_d(r.get('Rozładunek Montaż 3')))
             
             st.divider()
             st.markdown("### 🗓️ HARMONOGRAM POWROTÓW / EMPTIES")
             ce3, ce4 = st.columns(2)
-            ed_wj_e = ce3.date_input("Wjazd po Empties", value=dv(r.get('Wjazd po Empties')))
-            ed_do_e = ce4.date_input("Dostawa Empties", value=dv(r.get('Dostawa Empties')))
+            ed_wj_e = ce3.text_input("Wjazd po Empties", value=fmt_d(r.get('Wjazd po Empties')))
+            ed_do_e = ce4.text_input("Dostawa Empties", value=fmt_d(r.get('Dostawa Empties')))
             ce5, ce6 = st.columns(2)
-            ed_od_p = ce5.date_input("Odbiór Pełnych", value=dv(r.get('Odbiór Pełnych')))
-            ed_ro_p = ce6.date_input("Rozładunek SQM (powrót)", value=dv(r.get('Rozładunek Powrotny')))
+            ed_od_p = ce5.text_input("Odbiór Pełnych", value=fmt_d(r.get('Odbiór Pełnych')))
+            ed_ro_p = ce6.text_input("Rozładunek SQM (powrót)", value=fmt_d(r.get('Rozładunek Powrotny')))
 
             if st.form_submit_button("ZAPISZ KOREKTĘ"):
                 full_df.loc[real_idx, ["Numer Zlecenia", "Nazwa Targów", "Przewoźnik", "Kwota", "Dane Auta", "Kierowca", "Telefon", "Typ Transportu", "Notatka"]] = [e_nz, e_nt, e_przew, e_kw, e_da, e_ki, e_te, e_typ, e_no]
-                full_df.loc[real_idx, ["Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = [pd.to_datetime(ed_zal), pd.to_datetime(ed_zal), pd.to_datetime(ed_roz_m), pd.to_datetime(ed_od_p) if ed_od_p else None, pd.to_datetime(ed_od_p) if ed_od_p else None, pd.to_datetime(ed_ro_p) if ed_ro_p else None]
-                full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties"]] = [pd.to_datetime(ed_wj_e) if ed_wj_e else None, pd.to_datetime(ed_do_e) if ed_do_e else None]
-                full_df.loc[real_idx, ["Rozładunek Montaż 2", "Rozładunek Montaż 3"]] = [pd.to_datetime(ed_roz_m2) if ed_roz_m2 else None, pd.to_datetime(ed_roz_m3) if ed_roz_m3 else None]
+                
+                parsed_zal = parse_date_input(ed_zal)
+                parsed_roz = parse_date_input(ed_roz_m)
+                parsed_odp = parse_date_input(ed_od_p)
+                parsed_rop = parse_date_input(ed_ro_p)
+                parsed_wje = parse_date_input(ed_wj_e)
+                parsed_doe = parse_date_input(ed_do_e)
+                parsed_roz2 = parse_date_input(ed_roz_m2)
+                parsed_roz3 = parse_date_input(ed_roz_m3)
+                
+                full_df.loc[real_idx, ["Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = [parsed_zal, parsed_zal, parsed_roz, parsed_odp, parsed_odp, parsed_rop]
+                full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties"]] = [parsed_wje, parsed_doe]
+                full_df.loc[real_idx, ["Rozładunek Montaż 2", "Rozładunek Montaż 3"]] = [parsed_roz2, parsed_roz3]
 
                 if e_typ == "Dostawa i Powrót (bez postoju)": full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties"]] = None
                 elif e_typ == "Tylko Dostawa": full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = None

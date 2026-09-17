@@ -51,12 +51,12 @@ st.markdown("""
         font-weight: 700;
         letter-spacing: 1px;
     }
-    .bp-logo { color: #ffb612; font-weight: 700; }
+    .bp-logo { color: #ffb612; font-weight: 700; font-size: 18px; }
     .bp-flight { 
         font-family: 'Space Mono', monospace; 
-        font-size: 14px; 
+        font-size: 16px; /* POWIĘKSZONE Z 14px */
         background: rgba(255, 255, 255, 0.15); 
-        padding: 4px 10px; 
+        padding: 6px 12px; 
         border-radius: 4px;
     }
     
@@ -68,17 +68,17 @@ st.markdown("""
     }
     
     .bp-label {
-        display: block; font-size: 11px; color: #6b7280; 
+        display: block; font-size: 13px; color: #6b7280; /* POWIĘKSZONE Z 11px */
         text-transform: uppercase; font-weight: 700; margin-bottom: 5px;
     }
     .bp-val-large {
-        font-size: 26px; font-weight: 700; color: #001a70; text-transform: uppercase;
+        font-size: 30px; font-weight: 700; color: #001a70; text-transform: uppercase; /* POWIĘKSZONE Z 26px */
     }
     
     /* STATUS BADGES */
     .bp-status {
         padding: 8px 16px; border-radius: 3px; font-weight: 700; 
-        font-size: 14px; text-transform: uppercase; letter-spacing: 1px;
+        font-size: 16px; text-transform: uppercase; letter-spacing: 1px; /* POWIĘKSZONE Z 14px */
         font-family: 'Space Mono', monospace;
     }
     .status-realizacja { background: #ffb612; color: #001a70; border: 2px solid #ffb612; }
@@ -86,19 +86,19 @@ st.markdown("""
     .status-oczekuje   { background: #ffffff; color: #001a70; border: 2px solid #001a70; }
     
     .bp-row { display: flex; flex-wrap: wrap; gap: 40px; margin-bottom: 15px; }
-    .bp-val { font-size: 15px; font-weight: 700; color: #111827; }
+    .bp-val { font-size: 18px; font-weight: 700; color: #111827; } /* POWIĘKSZONE Z 15px */
     
     /* BARCODE */
     .bp-barcode {
         font-family: 'Libre Barcode 39 Text', cursive;
-        font-size: 48px; color: #111827;
-        text-align: right; margin-top: -30px; opacity: 0.8;
+        font-size: 64px; color: #111827; /* POWIĘKSZONE Z 48px */
+        text-align: right; margin-top: -35px; opacity: 0.8;
     }
     
     /* SSR REMARKS */
     .ssr-remarks { 
         background: #fef3c7; border-left: 4px solid #ffb612; padding: 12px 15px; 
-        margin-top: 15px; font-family: 'Space Mono', monospace; font-size: 13px; color: #001a70;
+        margin-top: 15px; font-family: 'Space Mono', monospace; font-size: 15px; color: #001a70; /* POWIĘKSZONE Z 13px */
     }
 
     /* LOGIN CONTAINER STYLING */
@@ -264,10 +264,12 @@ with tabs[0]:
             num_zlec = fmt(row.get('Numer Zlecenia'))
             awb_text = f"AWB/REF: <b>{num_zlec}</b> &nbsp;|&nbsp; " if num_zlec else ""
             
-            safe_barcode = re.sub(r'[^A-Z0-9]', '', str(row['Dane Auta']).upper())
-            if not safe_barcode: safe_barcode = f"ESQM{index}"
+            # Kod kreskowy używa Numeru Zlecenia, a jeśli go brak, generuje ID ESQM
+            if num_zlec:
+                safe_barcode = re.sub(r'[^A-Z0-9]', '', num_zlec.upper())
+            else:
+                safe_barcode = f"ESQM{index}"
 
-            # Wyrównany do lewej HTML zapobiega traktowaniu go jako kod (Markdown Code Block)
             html_card = f"""
 <div class="bp-card">
     <div class="bp-header">

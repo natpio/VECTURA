@@ -7,82 +7,76 @@ import time
 import folium
 from streamlit_folium import st_folium
 
-# --- 1. KONFIGURACJA UI I STYLÓW ---
-st.set_page_config(page_title="VECTURA PRIME | System Dowodzenia", layout="wide", page_icon="🛸")
+# --- 1. KONFIGURACJA UI I STYLÓW (TEATR & CIEMNE DREWNO) ---
+st.set_page_config(page_title="VECTURA | Backstage", layout="wide", page_icon="🎭")
 
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Lato:wght@300;400;700&display=swap');
     
-    /* GŁÓWNE TŁO - MROCZNY, KOSMICZNY GRADIENT */
+    /* GŁÓWNE TŁO - CZERŃ I FAKTURA DREWNA */
     .stApp { 
-        background: radial-gradient(circle at 15% 50%, #1e1b4b, #0f172a, #020617) !important; 
-        color: #e2e8f0;
+        background-color: #080808 !important; 
+        background-image: url("https://www.transparenttextures.com/patterns/wood-pattern.png");
+        color: #e0e0e0;
     }
-
-    /* UKRYCIE GÓRNEGO PASKA STREAMLIT DLA LEPSZEJ IMMERSJI */
-    header {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
     
-    /* TYPOGRAFIA FUTURYSTYCZNA */
+    /* TYPOGRAFIA TEATRALNA */
     h1, h2, h3, .metric-value { 
-        font-family: 'Orbitron', sans-serif !important; 
-        color: #38bdf8 !important; 
-        text-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+        font-family: 'Playfair Display', serif !important; 
+        color: #d4af37 !important; /* Stare złoto */
+        letter-spacing: 1px;
     }
     
-    /* GLASSMORPHISM - KARTY ZLECEŃ */
-    .glass-card { 
-        background: rgba(30, 41, 59, 0.4); 
-        backdrop-filter: blur(12px); 
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.08); 
-        border-radius: 16px; 
-        padding: 25px; 
-        margin: 20px 0; 
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); 
-        transition: transform 0.3s ease, border 0.3s ease, box-shadow 0.3s ease;
+    /* DREWNIANE KARTY ZLECEŃ */
+    .theater-card { 
+        background-color: #140e0b; /* Bardzo ciemny brąz/czerń */
+        background-image: linear-gradient(to bottom, rgba(20,14,11,0.9), rgba(10,7,5,0.95)), url("https://www.transparenttextures.com/patterns/retina-wood.png");
+        border: 1px solid #3e2723;
+        border-top: 6px solid #660000; /* Głęboka czerwień kurtyny */
+        border-bottom: 2px solid #d4af37; /* Złoty akcent */
+        border-radius: 4px; 
+        padding: 30px; 
+        margin: 25px 0; 
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.9); 
         position: relative;
     }
-    .glass-card:hover {
-        transform: translateY(-5px);
-        border: 1px solid rgba(56, 189, 248, 0.4);
-        box-shadow: 0 15px 40px rgba(56, 189, 248, 0.15);
-    }
     
-    .vehicle-title { font-family: 'Orbitron', sans-serif; font-size: 26px; font-weight: 700; color: #f8fafc; letter-spacing: 1px;}
-    .title-divider { color: #475569; margin: 0 10px; font-weight: 300;}
+    .vehicle-title { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; color: #fdfbf7; }
+    .title-divider { color: #d4af37; margin: 0 12px; font-weight: 300; font-style: italic; }
 
-    /* NEONOWE STATUSY */
+    /* STATUSY JAKO BILETY VIP */
     .status-badge {
-        position: absolute; top: 25px; right: 25px; padding: 6px 18px; border-radius: 30px;
-        font-family: 'Orbitron', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+        position: absolute; top: 25px; right: 25px; padding: 5px 20px; 
+        font-family: 'Playfair Display', serif; font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+        background: #000; border: 1px solid #d4af37; color: #d4af37;
+        box-shadow: 2px 2px 0px #3e2723;
     }
-    .status-realizacja { background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid #10b981; box-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
-    .status-zakonczony { background: rgba(56, 189, 248, 0.1); color: #7dd3fc; border: 1px solid #0ea5e9; box-shadow: 0 0 15px rgba(14, 165, 233, 0.3); }
-    .status-oczekuje { background: rgba(245, 158, 11, 0.1); color: #fbbf24; border: 1px solid #f59e0b; box-shadow: 0 0 15px rgba(245, 158, 11, 0.3); }
-    .status-brak { background: rgba(239, 68, 68, 0.1); color: #fca5a5; border: 1px solid #ef4444; }
+    .status-realizacja { border-color: #d4af37; color: #d4af37; }
+    .status-zakonczony { border-color: #4b5320; color: #78866b; } /* Zgaszona zieleń */
+    .status-oczekuje { border-color: #b7410e; color: #cc7722; } /* Rdzawa miedź */
     
-    /* PASEK INFORMACYJNY HUD */
+    /* PASEK INFORMACYJNY */
     .info-hud { 
-        display: flex; flex-wrap: wrap; gap: 20px; margin-top: 15px; 
-        background: rgba(0, 0, 0, 0.25); padding: 15px; border-radius: 8px; 
-        border-left: 3px solid #38bdf8; font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 500; color: #cbd5e1;
+        display: flex; flex-wrap: wrap; gap: 25px; margin-top: 15px; 
+        background: rgba(0, 0, 0, 0.6); padding: 15px 20px; border-radius: 2px; 
+        border-left: 2px solid #d4af37; font-family: 'Lato', sans-serif; font-size: 15px; font-weight: 400; color: #d1d1d1;
     }
-    .info-hud span b { color: #64748b; font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 1px; margin-right: 5px; }
+    .info-hud span b { color: #d4af37; font-family: 'Playfair Display', serif; font-size: 13px; letter-spacing: 1px; margin-right: 5px; text-transform: uppercase;}
     
-    /* NOTATKI JAKO LOGI SYSTEMOWE */
-    .system-log { 
-        background: rgba(239, 68, 68, 0.05); border-left: 3px solid #ef4444; padding: 12px 15px; 
-        margin-top: 15px; border-radius: 0 8px 8px 0; font-family: 'Courier New', monospace; font-size: 14px; color: #fca5a5;
+    /* NOTATKI JAKO SCENARIUSZ (SKRYPT) */
+    .script-log { 
+        background: #fdfbf7; padding: 15px 20px; margin-top: 20px; border-radius: 2px; 
+        font-family: 'Courier New', Courier, monospace; font-size: 15px; color: #1a1a1a;
+        border-left: 4px solid #660000; box-shadow: inset 0 0 15px rgba(0,0,0,0.1);
     }
     
-    /* EKRAN LOGOWANIA */
+    /* EKRAN LOGOWANIA - WEJŚCIE DLA ARTYSTÓW */
     .login-glass { 
-        max-width: 450px; margin: 120px auto; background: rgba(15, 23, 42, 0.6); 
-        backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-        padding: 50px; border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 20px; 
-        box-shadow: 0 0 50px rgba(56, 189, 248, 0.1); text-align: center;
+        max-width: 420px; margin: 100px auto; 
+        background-color: #120a07; background-image: url("https://www.transparenttextures.com/patterns/wood-pattern.png");
+        padding: 50px; border: 2px solid #3e2723; border-top: 8px solid #660000; border-radius: 4px; 
+        box-shadow: 0 20px 50px rgba(0,0,0,0.9); text-align: center;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -116,11 +110,11 @@ def check_password():
     if "session_expiry" in st.session_state and datetime.now().timestamp() < st.session_state["session_expiry"]: return True
     if "password_correct" not in st.session_state or not st.session_state["password_correct"]:
         st.markdown('<div class="login-glass">', unsafe_allow_html=True)
-        st.markdown("<h2>VECTURA PRIME</h2><p style='color:#64748b; font-family:Orbitron;'>SECURE ACCESS TERMINAL</p>", unsafe_allow_html=True)
-        st.text_input("Identyfikator:", key="username")
-        st.text_input("Kod autoryzacji:", type="password", on_change=password_entered, key="password")
+        st.markdown("<h2>WEJŚCIE DLA ARTYSTÓW</h2><p style='color:#d4af37; font-family:Lato;'>VECTURA BACKSTAGE</p>", unsafe_allow_html=True)
+        st.text_input("Garderoba (Login):", key="username")
+        st.text_input("Kod wejścia:", type="password", on_change=password_entered, key="password")
         if "password_correct" in st.session_state and not st.session_state["password_correct"]:
-            st.error("❌ BŁĄD AUTORYZACJI")
+            st.error("❌ Odmowa dostępu na zaplecze")
         st.markdown('</div>', unsafe_allow_html=True)
         return False
     return True
@@ -152,15 +146,15 @@ full_df = load_data()
 if st.session_state["role"] == "admin": view_df = full_df.copy()
 else: view_df = full_df[full_df["Przewoźnik"] == st.session_state["carrier_name"]].copy()
 
-# --- 4. KONFIGURACJA GANTTA (NEON PALETTE) ---
+# --- 4. KONFIGURACJA GANTTA (TEATRALNA PALETA BARW) ---
 STAGES_DEF = [
-    ("1. Załadunek", "Data Załadunku", "Data Załadunku", "#38bdf8"),       # Neon Blue
-    ("2. Trasa", "Data Załadunku", "Rozładunek Montaż", "#818cf8"),         # Indigo
-    ("3. Montaż/Postój", "Rozładunek Montaż", "Wjazd po Empties", "#c084fc"),# Neon Purple
-    ("4. Postój z Empties", "Wjazd po Empties", "Dostawa Empties", "#fb7185"),# Neon Pink
-    ("5. Oczekiwanie na Powrót", "Dostawa Empties", "Odbiór Pełnych", "#f59e0b"), # Amber
-    ("6. Trasa Powrót", "Odbiór Pełnych", "Rozładunek Powrotny", "#a3e635"),  # Lime Green
-    ("7. Rozładunek SQM", "Rozładunek Powrotny", "Rozładunek Powrotny", "#10b981") # Emerald
+    ("1. Załadunek", "Data Załadunku", "Data Załadunku", "#4a3c31"),       # Brązowy dąb
+    ("2. Trasa", "Data Załadunku", "Rozładunek Montaż", "#5c4033"),         # Ciemny mahoń
+    ("3. Montaż/Postój", "Rozładunek Montaż", "Wjazd po Empties", "#8b0000"),# Czerwień kurtyny
+    ("4. Postój z Empties", "Wjazd po Empties", "Dostawa Empties", "#660000"),# Głęboki burgund
+    ("5. Oczekiwanie na Powrót", "Dostawa Empties", "Odbiór Pełnych", "#b8860b"), # Ciemne złoto
+    ("6. Trasa Powrót", "Odbiór Pełnych", "Rozładunek Powrotny", "#556b2f"),  # Zgaszona oliwka
+    ("7. Rozładunek SQM", "Rozładunek Powrotny", "Rozładunek Powrotny", "#2f4f4f") # Ciemny łupek
 ]
 
 def get_status(row):
@@ -175,51 +169,49 @@ def get_status(row):
 def fmt(val): return "" if pd.isna(val) or str(val).lower() == "nan" else str(val)
 
 # --- 5. INTERFEJS GŁÓWNY ---
-st.title("VECTURA PRIME")
-st.caption(f"HUD ZALOGOWANY: {st.session_state['carrier_name'].upper()} | ROLA: {st.session_state['role'].upper()}")
+st.title("VECTURA BACKSTAGE")
+st.caption(f"OBSŁUGA SCENY: {st.session_state['carrier_name'].upper()} | ROLA: {st.session_state['role'].upper()}")
 
 if st.session_state["role"] == "admin":
-    tabs = st.tabs(["📡 MONITORING LIVE", "🗺️ DARK MAP", "➕ REJESTR ZLECEŃ", "⚙️ MODYFIKACJA", "🗄️ BAZA", "🗑️ TERMINACJA"])
+    tabs = st.tabs(["🎭 SCENA GŁÓWNA", "🗺️ MAPA TRAS", "➕ NOWA INSCENIZACJA", "⚙️ EDYCJA", "🗄️ ARCHIWUM", "🗑️ KOSZ"])
 else:
-    tabs = st.tabs(["📡 MONITORING LIVE", "🗺️ DARK MAP", "➕ REJESTR ZLECEŃ", "⚙️ MODYFIKACJA", "🗄️ BAZA"])
+    tabs = st.tabs(["🎭 SCENA GŁÓWNA", "🗺️ MAPA TRAS", "➕ NOWA INSCENIZACJA", "⚙️ EDYCJA", "🗄️ ARCHIWUM"])
 
 # --- TAB 1: MONITORING ---
 with tabs[0]:
     if not view_df.empty:
         col1, col2, col3 = st.columns(3)
-        col1.metric("ŁĄCZNA FLOTA", len(view_df))
-        col2.metric("AKTYWNE OPERACJE", len([s for s in view_df.apply(get_status, axis=1) if s == "W REALIZACJI"]))
-        col3.metric("ZAKOŃCZONE", len([s for s in view_df.apply(get_status, axis=1) if s == "ZAKOŃCZONY"]))
+        col1.metric("Wszystkie Zlecenia", len(view_df))
+        col2.metric("W Trakcie Realizacji", len([s for s in view_df.apply(get_status, axis=1) if s == "W REALIZACJI"]))
+        col3.metric("Kurtyna Opuszczona (Koniec)", len([s for s in view_df.apply(get_status, axis=1) if s == "ZAKOŃCZONY"]))
         
         for index, row in view_df.iterrows():
             status = get_status(row)
             typ_trans = fmt(row.get('Typ Transportu'))
             
-            # Dobieranie klasy statusu do stylizacji CSS
-            status_class = "status-realizacja" if status == "W REALIZACJI" else ("status-zakonczony" if status == "ZAKOŃCZONY" else ("status-oczekuje" if status == "OCZEKUJE" else "status-brak"))
+            status_class = "status-realizacja" if status == "W REALIZACJI" else ("status-zakonczony" if status == "ZAKOŃCZONY" else "status-oczekuje")
 
             st.markdown(f'''
-                <div class="glass-card">
+                <div class="theater-card">
                     <div>
                         <span class="vehicle-title">{fmt(row['Dane Auta'])}</span>
-                        <span class="title-divider">///</span>
-                        <span class="vehicle-title" style="color:#94a3b8; font-size: 20px;">{fmt(row['Nazwa Targów'])}</span>
+                        <span class="title-divider">~</span>
+                        <span class="vehicle-title" style="color:#b5b5b5; font-size: 24px; font-weight:400;">{fmt(row['Nazwa Targów'])}</span>
                     </div>
                     <div class="status-badge {status_class}">{status}</div>
                     
                     <div class="info-hud">
-                        <span><b>PRZEWOŹNIK:</b> {fmt(row.get('Przewoźnik'))}</span>
-                        <span><b>TRYB:</b> {typ_trans.upper()}</span>
-                        <span><b>KIEROWCA:</b> {fmt(row.get('Kierowca'))}</span>
-                        <span><b>ŁĄCZNOŚĆ:</b> {fmt(row.get('Telefon'))}</span>
-                        <span><b>WARTOŚĆ:</b> {fmt(row.get('Kwota'))}</span>
+                        <span><b>Przewoźnik:</b> {fmt(row.get('Przewoźnik'))}</span>
+                        <span><b>Tryb Scenariusza:</b> {typ_trans}</span>
+                        <span><b>Kierowca:</b> {fmt(row.get('Kierowca'))}</span>
+                        <span><b>Telefon:</b> {fmt(row.get('Telefon'))}</span>
+                        <span><b>Kwota:</b> {fmt(row.get('Kwota'))}</span>
                     </div>
             ''', unsafe_allow_html=True)
             
             if pd.notnull(row.get('Notatka')) and row['Notatka'] != "":
-                st.markdown(f'<div class="system-log"><b>>_ SYSTEM_LOG:</b><br>{row["Notatka"]}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="script-log"><b>[Notatka Reżysera]</b><br>{row["Notatka"]}</div>', unsafe_allow_html=True)
             
-            # WRYSOKIEJ JAKOŚCI GANTT W TRYBIE CIEMNYM
             single_gantt_df = []
             for stage, start_col, end_col, color in STAGES_DEF:
                 s_date = row.get(start_col); e_date = row.get(end_col)
@@ -232,40 +224,40 @@ with tabs[0]:
             
             if single_gantt_df:
                 fig = px.timeline(pd.DataFrame(single_gantt_df), x_start="Start", x_end="Finish", y="Projekt", color="Etap", template="plotly_dark", color_discrete_map={s[0]: s[3] for s in STAGES_DEF})
-                fig.add_vline(x=datetime.now().timestamp() * 1000, line_dash="solid", line_width=2, line_color="#ef4444")
-                fig.update_xaxes(dtick="D1", tickformat="%d.%m", side="top", showgrid=True, gridcolor='rgba(255,255,255,0.1)')
+                fig.add_vline(x=datetime.now().timestamp() * 1000, line_dash="dash", line_width=2, line_color="#d4af37") # Złota linia "DZIŚ"
+                fig.update_xaxes(dtick="D1", tickformat="%d.%m", side="top", showgrid=True, gridcolor='rgba(255,255,255,0.05)')
                 fig.update_layout(height=170, margin=dict(t=30, b=0, l=0, r=0), showlegend=True, yaxis={'visible': False}, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig, use_container_width=True, key=f"gantt_{index}")
                 
             st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.info("Brak aktywnych rekordów w bazie operacyjnej.")
+        st.info("Scena jest pusta.")
 
-# --- TAB 2: MAPA TRAS (MROCZNY MOTYW) ---
+# --- TAB 2: MAPA TRAS ---
 with tabs[1]:
-    st.markdown("<h3 style='color:#38bdf8; font-family:Orbitron;'>🗺️ GLOBAL TRACKING NETWORK</h3>", unsafe_allow_html=True)
-    m = folium.Map(location=[52.0, 19.0], zoom_start=4, tiles="CartoDB dark_matter") # Tryb ciemny mapy
+    st.markdown("<h3 style='color:#d4af37; font-family:Playfair Display;'>🗺️ MAPA TRAS ARTYSTYCZNYCH</h3>", unsafe_allow_html=True)
+    m = folium.Map(location=[52.0, 19.0], zoom_start=4, tiles="CartoDB dark_matter")
     st_folium(m, width=1200, height=450)
 
 # --- TAB 3: NOWE ZLECENIE ---
 with tabs[2]:
     with st.form("add_form"):
-        st.subheader("WPROWADZANIE NOWYCH WSPÓŁRZĘDNYCH")
+        st.subheader("DODAJ NOWĄ INSCENIZACJĘ")
         c1, c2, c3 = st.columns(3)
-        nt = c1.text_input("Nazwa Targów*")
+        nt = c1.text_input("Wydarzenie (Nazwa Targów)*")
         
         if st.session_state["role"] == "admin": przew = c2.text_input("Przewoźnik*")
         else: przew = st.session_state["carrier_name"]; c2.text_input("Przewoźnik", value=przew, disabled=True)
             
-        kw = c3.text_input("Kwota")
-        da = c1.text_input("Dane Auta*")
+        kw = c3.text_input("Budżet (Kwota)")
+        da = c1.text_input("Tablice Rejestracyjne*")
         ki = c2.text_input("Kierowca")
         te = c3.text_input("Telefon")
-        t_type = st.selectbox("Typ transportu", ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"])
-        no = st.text_area("Logi systemowe / Notatki")
+        t_type = st.selectbox("Rodzaj transportu", ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"])
+        no = st.text_area("Szczegóły / Skrypt notatki")
         
         st.divider()
-        st.markdown("### 🗓️ TIMELINE")
+        st.markdown("### 🗓️ HARMONOGRAM CZASOWY")
         col1, col2 = st.columns(2)
         d_zal = col1.date_input("Załadunek SQM")
         d_roz_m = col2.date_input("Rozładunek Montaż (Dostawa)")
@@ -280,7 +272,7 @@ with tabs[2]:
             d_od_p = col5.date_input("Odbiór Pełnych")
             d_ro_p = col6.date_input("Rozładunek SQM (powrót)")
 
-        if st.form_submit_button("INICJUJ OPERACJĘ"):
+        if st.form_submit_button("ZAPISZ W SCENARIUSZU"):
             if nt and da and przew:
                 new_data = {
                     "Nazwa Targów": nt, "Przewoźnik": przew, "Logistyk": "Admin", "Kwota": kw, 
@@ -293,13 +285,13 @@ with tabs[2]:
                 }
                 combined = pd.concat([full_df[REQUIRED_COLS], pd.DataFrame([new_data])], ignore_index=True)
                 conn.update(worksheet="VECTURA", data=combined)
-                st.success("Operacja zarejestrowana."); time.sleep(1); st.rerun()
+                st.success("Dodano do systemu."); time.sleep(1); st.rerun()
 
 # --- TAB 4: EDYCJA ---
 with tabs[3]:
     if not view_df.empty:
         view_df['key'] = view_df['Nazwa Targów'].astype(str) + " | " + view_df['Dane Auta'].astype(str)
-        sel = st.selectbox("Wybierz identyfikator do modyfikacji:", view_df['key'].unique())
+        sel = st.selectbox("Wybierz zlecenie do korekty:", view_df['key'].unique())
         
         full_df['key'] = full_df['Nazwa Targów'].astype(str) + " | " + full_df['Dane Auta'].astype(str)
         real_idx = full_df[full_df['key'] == sel].index[0]
@@ -318,7 +310,7 @@ with tabs[3]:
             e_te = c3.text_input("Telefon", r['Telefon'])
             e_typ = st.selectbox("Typ transportu", ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"], 
                                  index=["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"].index(r['Typ Transportu']) if r['Typ Transportu'] in ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"] else 0)
-            e_no = st.text_area("Logi systemowe / Notatki", r['Notatka'])
+            e_no = st.text_area("Szczegóły / Skrypt notatki", r['Notatka'])
             
             def dv(v): return v.date() if pd.notnull(v) else datetime.now().date()
             
@@ -333,7 +325,7 @@ with tabs[3]:
             ed_od_p = ce5.date_input("Odbiór Pełnych", dv(r['Odbiór Pełnych']))
             ed_ro_p = ce6.date_input("Rozładunek SQM (powrót)", dv(r['Rozładunek Powrotny']))
 
-            if st.form_submit_button("NADZISZ DANE"):
+            if st.form_submit_button("NANEŚ POPRAWKI"):
                 full_df.loc[real_idx, ["Nazwa Targów", "Przewoźnik", "Kwota", "Dane Auta", "Kierowca", "Telefon", "Typ Transportu", "Notatka"]] = [e_nt, e_przew, e_kw, e_da, e_ki, e_te, e_typ, e_no]
                 full_df.loc[real_idx, ["Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = [pd.to_datetime(ed_zal), pd.to_datetime(ed_zal), pd.to_datetime(ed_roz_m), pd.to_datetime(ed_od_p), pd.to_datetime(ed_od_p), pd.to_datetime(ed_ro_p)]
                 full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties"]] = [pd.to_datetime(ed_wj_e), pd.to_datetime(ed_do_e)]
@@ -342,7 +334,7 @@ with tabs[3]:
                 elif e_typ == "Tylko Dostawa": full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = None
                 
                 conn.update(worksheet="VECTURA", data=full_df[REQUIRED_COLS])
-                st.success("Synchronizacja zakończona."); time.sleep(1); st.rerun()
+                st.success("Zmiany naniesione."); time.sleep(1); st.rerun()
 
 # --- TAB 5: BAZA ---
 with tabs[4]: st.dataframe(view_df[REQUIRED_COLS], use_container_width=True)
@@ -352,7 +344,7 @@ if st.session_state["role"] == "admin":
     with tabs[5]:
         if not full_df.empty:
             full_df['key'] = full_df['Nazwa Targów'].astype(str) + " | " + full_df['Dane Auta'].astype(str)
-            target = st.selectbox("Wybierz proces do terminacji:", full_df['key'].unique(), key="del_sel")
-            if st.button("POTWIERDŹ TERMINACJĘ", type="primary"):
+            target = st.selectbox("Wybierz zlecenie do usunięcia:", full_df['key'].unique(), key="del_sel")
+            if st.button("USUNĄĆ Z ARCHIWUM", type="primary"):
                 conn.update(worksheet="VECTURA", data=full_df[full_df['key'] != target][REQUIRED_COLS])
-                st.success("Zlecenie usunięte z rdzenia."); time.sleep(1); st.rerun()
+                st.success("Zlecenie usunięte na stałe."); time.sleep(1); st.rerun()

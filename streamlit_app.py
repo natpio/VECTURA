@@ -23,25 +23,36 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. BAZA UŻYTKOWNIKÓW I LOGIKA HASŁA ---
-# Tutaj definiujesz konta. 'role' określa uprawnienia. 'carrier_name' to dokładna nazwa jaka trafi do Google Sheets.
-USERS = {
-    "sqm": {"pass": "Centrala2026!", "role": "admin", "carrier_name": "Wszyscy"},
-    "trans_a": {"pass": "KierowcaA", "role": "carrier", "carrier_name": "Firma Transportowa A"},
-    "trans_b": {"pass": "KierowcaB", "role": "carrier", "carrier_name": "Firma Transportowa B"}
-}
+# --- 2. BAZA UŻYTKOWNIKÓW Z GOOGLE SHEETS I LOGIKA HASŁA ---
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+@st.cache_data(ttl=60)
+def load_users():
+    try:
+        users_df = conn.read(worksheet="UZYTKOWNICY", ttl=0)
+        return users_df.dropna(subset=['Login'])
+    except Exception:
+        # Zabezpieczenie przed błędem, gdy zakładka jeszcze nie istnieje
+        return pd.DataFrame()
 
 def check_password():
     def password_entered():
         user = st.session_state["username"]
         pwd = st.session_state["password"]
         
-        if user in USERS and USERS[user]["pass"] == pwd:
-            st.session_state["password_correct"] = True
-            st.session_state["role"] = USERS[user]["role"]
-            st.session_state["carrier_name"] = USERS[user]["carrier_name"]
-            st.session_state["session_expiry"] = (datetime.now() + timedelta(days=30)).timestamp()
-            del st.session_state["password"]
+        users_df = load_users()
+        if not users_df.empty and "Login" in users_df.columns:
+            user_row = users_df[users_df["Login"] == user]
+            
+            if not user_row.empty and str(user_row.iloc[0]["Haslo"]) == pwd:
+                st.session_state["password_correct"] = True
+                st.session_state["role"] = user_row.iloc[0]["Rola"]
+                st.session_state["carrier_name"] = user_row.iloc[0]["Przewoznik"]
+                # Czas wygaśnięcia sesji ustawiony na 30 dni od teraz
+                st.session_state["session_expiry"] = (datetime.now() + timedelta(days=30)).timestamp()
+                del st.session_state["password"]
+            else:
+                st.session_state["password_correct"] = False
         else:
             st.session_state["password_correct"] = False
 
@@ -62,10 +73,7 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- 3. POŁĄCZENIE Z ARKUSZEM (Z NOWĄ KOLUMNĄ) ---
-conn = st.connection("gsheets", type=GSheetsConnection)
-
-# UWAGA: Dodano kolumnę "Przewoźnik" do struktury
+# --- 3. POŁĄCZENIE Z ARKUSZEM BAZOWYM ---
 REQUIRED_COLS = [
     "Nazwa Targów", "Przewoźnik", "Logistyk", "Kwota", "Dane Auta", "Kierowca", "Telefon", "Typ Transportu",
     "Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Postój",
@@ -88,7 +96,7 @@ def load_data():
 
 full_df = load_data()
 
-# FILTROWANIE WIDOKU DLA ZALOGOWANEGO UŻYTKOWNIKA
+# Filtrowanie widoku dla zalogowanego użytkownika
 if st.session_state["role"] == "admin":
     view_df = full_df.copy()
 else:
@@ -120,7 +128,6 @@ def fmt(val): return "" if pd.isna(val) or str(val).lower() == "nan" else str(va
 st.title(f"VECTURA | {'Centrala SQM' if st.session_state['role'] == 'admin' else st.session_state['carrier_name']}")
 st.caption(f"Zalogowano jako: {st.session_state['role'].upper()}")
 
-# Przewoźnicy nie widzą zakładki USUŃ
 if st.session_state["role"] == "admin":
     tabs = st.tabs(["📍 MONITORING", "🗺️ MAPA TRAS", "➕ NOWE ZLECENIE", "✏️ EDYCJA", "📋 BAZA", "🗑️ USUŃ"])
 else:
@@ -142,7 +149,7 @@ with tabs[0]:
             h_rot = "-3deg" if status == "W REALIZACJI" else "2deg"
             hanko_style = f"position: absolute; top: 25px; right: 25px; padding: 4px 12px; border: 4px solid {h_color}; color: {h_color}; font-family: 'Bebas Neue', sans-serif; font-size: 22px; transform: rotate({h_rot}); letter-spacing: 2px; border-radius: 4px;"
 
-            st.markdown(f"""
+            st.markdown(f'''
                 <div class="vehicle-card">
                     <div class="vehicle-title">{fmt(row['Dane Auta'])} <span style="color:#a3b8cc;">|</span> {fmt(row['Nazwa Targów'])}</div>
                     <div style="{hanko_style}">{status}</div>
@@ -153,7 +160,7 @@ with tabs[0]:
                         <span>📞 <b>TEL:</b> {fmt(row.get('Telefon'))}</span>
                         <span>💰 <b>KOSZT:</b> {fmt(row.get('Kwota'))}</span>
                     </div>
-            """, unsafe_allow_html=True)
+            ''', unsafe_allow_html=True)
             
             if pd.notnull(row.get('Notatka')) and row['Notatka'] != "":
                 st.markdown(f'<div class="note-box"><b>UWAGI OPERACYJNE:</b><br>{row["Notatka"]}</div>', unsafe_allow_html=True)
@@ -192,7 +199,6 @@ with tabs[2]:
         c1, c2, c3 = st.columns(3)
         nt = c1.text_input("Nazwa Targów*")
         
-        # Jeśli dodaje Admin - może wpisać przewoźnika. Jeśli przewoźnik - wpisuje się z automatu.
         if st.session_state["role"] == "admin":
             przew = c2.text_input("Przewoźnik*")
         else:
@@ -234,7 +240,6 @@ with tabs[2]:
                     "Odbiór Pełnych": pd.to_datetime(d_od_p) if d_od_p else None,
                     "Rozładunek Powrotny": pd.to_datetime(d_ro_p) if d_ro_p else None
                 }
-                # AKTUALIZUJEMY CAŁĄ BAZĘ (full_df), a nie tylko widok przewoźnika!
                 combined = pd.concat([full_df[REQUIRED_COLS], pd.DataFrame([new_data])], ignore_index=True)
                 conn.update(worksheet="VECTURA", data=combined)
                 st.success("Zlecenie dodane!"); time.sleep(1); st.rerun()
@@ -245,7 +250,6 @@ with tabs[3]:
         view_df['key'] = view_df['Nazwa Targów'].astype(str) + " | " + view_df['Dane Auta'].astype(str)
         sel = st.selectbox("Wybierz zlecenie do aktualizacji:", view_df['key'].unique())
         
-        # Wyciągamy rzeczywisty index z pełnej bazy (full_df)
         full_df['key'] = full_df['Nazwa Targów'].astype(str) + " | " + full_df['Dane Auta'].astype(str)
         real_idx = full_df[full_df['key'] == sel].index[0]
         r = full_df.loc[real_idx]

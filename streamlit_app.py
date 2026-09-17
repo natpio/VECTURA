@@ -8,23 +8,29 @@ import folium
 from streamlit_folium import st_folium
 import re
 
-# --- 1. KONFIGURACJA UI I STYLÓW (LUFTHANSA CARGO + PL TERMINOLOGIA) ---
-st.set_page_config(page_title="eventySQM | Ops Control", layout="wide", page_icon="✈️")
+# --- 1. UI CONFIGURATION & STYLING ---
+st.set_page_config(page_title="eventySQM | Ops Control", layout="wide", page_icon="🚛")
 
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+39+Text&family=Inter:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap');
     
-    /* GŁÓWNE TŁO */
+    /* HIDE STREAMLIT BRANDING */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    .viewerBadge_container__1QSob {display: none !important;}
+    
+    /* MAIN BACKGROUND */
     .stApp { 
         background-color: #f2f4f8 !important; 
         font-family: 'Inter', Helvetica, Arial, sans-serif !important;
     }
     
-    /* NAGŁÓWKI */
+    /* HEADERS */
     h1, h2, h3 { color: #001a70 !important; font-weight: 700; text-transform: uppercase; letter-spacing: -0.5px;}
     
-    /* KARTA ZLECENIA */
+    /* BOARDING PASS CARD */
     .bp-card {
         background: #ffffff;
         border: 1px solid #e5e7eb;
@@ -69,7 +75,7 @@ st.markdown("""
         font-size: 26px; font-weight: 700; color: #001a70; text-transform: uppercase;
     }
     
-    /* STATUSY */
+    /* STATUS BADGES */
     .bp-status {
         padding: 8px 16px; border-radius: 3px; font-weight: 700; 
         font-size: 14px; text-transform: uppercase; letter-spacing: 1px;
@@ -82,20 +88,31 @@ st.markdown("""
     .bp-row { display: flex; flex-wrap: wrap; gap: 40px; margin-bottom: 15px; }
     .bp-val { font-size: 15px; font-weight: 700; color: #111827; }
     
-    /* KOD KRESKOWY */
+    /* BARCODE */
     .bp-barcode {
         font-family: 'Libre Barcode 39 Text', cursive;
         font-size: 48px; color: #111827;
         text-align: right; margin-top: -30px; opacity: 0.8;
     }
     
-    /* NOTATKI */
+    /* SSR REMARKS */
     .ssr-remarks { 
         background: #fef3c7; border-left: 4px solid #ffb612; padding: 12px 15px; 
         margin-top: 15px; font-family: 'Space Mono', monospace; font-size: 13px; color: #001a70;
     }
-    
-    /* STYLIZACJA PRZYCISKU LOGOWANIA (LH BLUE) */
+
+    /* LOGIN CONTAINER STYLING */
+    div[data-testid="stVerticalBlock"] > div.element-container > div.stMarkdown > div > p > div.login-box {
+        background: #ffffff;
+        padding: 40px;
+        border-top: 8px solid #001a70;
+        border-bottom: 8px solid #ffb612;
+        box-shadow: 0 10px 30px rgba(0, 26, 112, 0.1);
+        border-radius: 4px;
+        text-align: center;
+    }
+
+    /* LOGIN BUTTON STYLING */
     div.stButton > button[kind="primary"] {
         background-color: #001a70;
         color: white;
@@ -104,6 +121,7 @@ st.markdown("""
         letter-spacing: 1px;
         border-radius: 4px;
         padding: 10px 0;
+        margin-top: 10px;
     }
     div.stButton > button[kind="primary"]:hover {
         background-color: #ffb612;
@@ -112,7 +130,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. BAZA UŻYTKOWNIKÓW I LOGIKA HASŁA ---
+# --- 2. USER DATABASE & LOGIN LOGIC ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 @st.cache_data(ttl=60)
@@ -139,22 +157,36 @@ def check_password():
 
     if "session_expiry" in st.session_state and datetime.now().timestamp() < st.session_state["session_expiry"]: return True
     if "password_correct" not in st.session_state or not st.session_state["password_correct"]:
-        # NAPRAWIONY UKŁAD LOGOWANIA (Wyśrodkowane kolumny)
+        
         st.markdown("<br><br><br>", unsafe_allow_html=True)
         _, col_login, _ = st.columns([1.5, 2, 1.5])
         
         with col_login:
+            # Replaced text header with an SVG Truck icon using Lufthansa colors
             st.markdown("""
-            <div style="text-align: center; border-bottom: 5px solid #ffb612; padding-bottom: 15px; margin-bottom: 25px;">
+            <div style="background: #ffffff; padding: 40px 40px 10px 40px; border-top: 8px solid #001a70; border-radius: 4px 4px 0 0; text-align: center; box-shadow: 0 10px 30px rgba(0, 26, 112, 0.05); margin-bottom: -15px;">
+                <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#001a70" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 15px;">
+                    <rect x="1" y="3" width="15" height="13"></rect>
+                    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+                    <circle cx="5.5" cy="18.5" r="2.5" fill="#ffb612" stroke="#ffb612"></circle>
+                    <circle cx="18.5" cy="18.5" r="2.5" fill="#ffb612" stroke="#ffb612"></circle>
+                </svg>
                 <h2 style='margin-bottom: 5px; color: #001a70;'>TERMINAL eventySQM</h2>
-                <p style='color:#6b7280; font-size:14px; font-weight:bold; margin-bottom: 0;'>SECURE LOGISTICS PORTAL</p>
+                <p style='color:#6b7280; font-size:14px; font-weight:bold; margin-bottom: 20px;'>SECURE LOGISTICS PORTAL</p>
             </div>
             """, unsafe_allow_html=True)
             
-            st.text_input("Identyfikator (Login):", key="username")
-            st.text_input("Kod dostępu (PIN):", type="password", key="password")
-            st.button("AUTORYZACJA", on_click=password_entered, type="primary", use_container_width=True)
-            
+            # Form container
+            with st.container():
+                st.text_input("Identyfikator (Login):", key="username")
+                st.text_input("Kod dostępu (PIN):", type="password", key="password")
+                st.button("AUTORYZACJA", on_click=password_entered, type="primary", use_container_width=True)
+                
+            st.markdown("""
+            <div style="background: #ffffff; padding: 1px; border-bottom: 8px solid #ffb612; border-radius: 0 0 4px 4px; box-shadow: 0 10px 30px rgba(0, 26, 112, 0.05); margin-top: -15px;">
+            </div>
+            """, unsafe_allow_html=True)
+
             if "password_correct" in st.session_state and not st.session_state["password_correct"]:
                 st.error("❌ Błędny identyfikator lub PIN")
         return False
@@ -163,7 +195,7 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- 3. POŁĄCZENIE Z ARKUSZEM BAZOWYM ---
+# --- 3. DATABASE CONNECTION ---
 REQUIRED_COLS = [
     "Numer Zlecenia", "Nazwa Targów", "Przewoźnik", "Logistyk", "Kwota", "Dane Auta", "Kierowca", "Telefon", "Typ Transportu",
     "Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Postój",
@@ -187,7 +219,7 @@ full_df = load_data()
 if st.session_state["role"] == "admin": view_df = full_df.copy()
 else: view_df = full_df[full_df["Przewoźnik"] == st.session_state["carrier_name"]].copy()
 
-# --- 4. KONFIGURACJA ZMIENNYCH ---
+# --- 4. GANTT CONFIGURATION ---
 STAGES_DEF = [
     ("1. Załadunek", "Data Załadunku", "Data Załadunku", "#001a70"),       
     ("2. Trasa", "Data Załadunku", "Rozładunek Montaż", "#005a9c"),         
@@ -209,7 +241,7 @@ def get_status(row):
 
 def fmt(val): return "" if pd.isna(val) or str(val).lower() == "nan" else str(val)
 
-# --- 5. INTERFEJS GŁÓWNY ---
+# --- 5. MAIN INTERFACE ---
 st.title("eventySQM OPS CONTROL")
 st.caption(f"OPERATOR ZALOGOWANY: {st.session_state['carrier_name'].upper()} | POZIOM DOSTĘPU: {st.session_state['role'].upper()}")
 
@@ -240,7 +272,7 @@ with tabs[0]:
             st.markdown(f'''
                 <div class="bp-card">
                     <div class="bp-header">
-                        <div class="bp-logo">✈ eventySQM</div>
+                        <div class="bp-logo">🚛 eventySQM</div>
                         <div class="bp-flight">{awb_text}AUTO: {fmt(row['Dane Auta'])}</div>
                     </div>
                     <div class="bp-body">

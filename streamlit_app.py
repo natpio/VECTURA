@@ -54,7 +54,7 @@ st.markdown("""
     .bp-logo { color: #ffb612; font-weight: 700; font-size: 18px; }
     .bp-flight { 
         font-family: 'Space Mono', monospace; 
-        font-size: 16px; /* POWIĘKSZONE Z 14px */
+        font-size: 16px;
         background: rgba(255, 255, 255, 0.15); 
         padding: 6px 12px; 
         border-radius: 4px;
@@ -68,17 +68,17 @@ st.markdown("""
     }
     
     .bp-label {
-        display: block; font-size: 13px; color: #6b7280; /* POWIĘKSZONE Z 11px */
+        display: block; font-size: 13px; color: #6b7280; 
         text-transform: uppercase; font-weight: 700; margin-bottom: 5px;
     }
     .bp-val-large {
-        font-size: 30px; font-weight: 700; color: #001a70; text-transform: uppercase; /* POWIĘKSZONE Z 26px */
+        font-size: 30px; font-weight: 700; color: #001a70; text-transform: uppercase;
     }
     
     /* STATUS BADGES */
     .bp-status {
         padding: 8px 16px; border-radius: 3px; font-weight: 700; 
-        font-size: 16px; text-transform: uppercase; letter-spacing: 1px; /* POWIĘKSZONE Z 14px */
+        font-size: 16px; text-transform: uppercase; letter-spacing: 1px; 
         font-family: 'Space Mono', monospace;
     }
     .status-realizacja { background: #ffb612; color: #001a70; border: 2px solid #ffb612; }
@@ -86,47 +86,27 @@ st.markdown("""
     .status-oczekuje   { background: #ffffff; color: #001a70; border: 2px solid #001a70; }
     
     .bp-row { display: flex; flex-wrap: wrap; gap: 40px; margin-bottom: 15px; }
-    .bp-val { font-size: 18px; font-weight: 700; color: #111827; } /* POWIĘKSZONE Z 15px */
+    .bp-val { font-size: 18px; font-weight: 700; color: #111827; }
     
     /* BARCODE */
     .bp-barcode {
         font-family: 'Libre Barcode 39 Text', cursive;
-        font-size: 64px; color: #111827; /* POWIĘKSZONE Z 48px */
+        font-size: 64px; color: #111827;
         text-align: right; margin-top: -35px; opacity: 0.8;
     }
     
     /* SSR REMARKS */
     .ssr-remarks { 
         background: #fef3c7; border-left: 4px solid #ffb612; padding: 12px 15px; 
-        margin-top: 15px; font-family: 'Space Mono', monospace; font-size: 15px; color: #001a70; /* POWIĘKSZONE Z 13px */
+        margin-top: 15px; font-family: 'Space Mono', monospace; font-size: 15px; color: #001a70;
     }
 
-    /* LOGIN CONTAINER STYLING */
-    div[data-testid="stVerticalBlock"] > div.element-container > div.stMarkdown > div > p > div.login-box {
-        background: #ffffff;
-        padding: 40px;
-        border-top: 8px solid #001a70;
-        border-bottom: 8px solid #ffb612;
-        box-shadow: 0 10px 30px rgba(0, 26, 112, 0.1);
-        border-radius: 4px;
-        text-align: center;
-    }
-
-    /* LOGIN BUTTON STYLING */
+    /* LOGIN STYLING */
     div.stButton > button[kind="primary"] {
         background-color: #001a70;
-        color: white;
-        border: none;
-        font-weight: bold;
-        letter-spacing: 1px;
-        border-radius: 4px;
-        padding: 10px 0;
-        margin-top: 10px;
+        color: white; border: none; font-weight: bold; letter-spacing: 1px; border-radius: 4px; padding: 10px 0; margin-top: 10px;
     }
-    div.stButton > button[kind="primary"]:hover {
-        background-color: #ffb612;
-        color: #001a70;
-    }
+    div.stButton > button[kind="primary"]:hover { background-color: #ffb612; color: #001a70; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -157,46 +137,35 @@ def check_password():
 
     if "session_expiry" in st.session_state and datetime.now().timestamp() < st.session_state["session_expiry"]: return True
     if "password_correct" not in st.session_state or not st.session_state["password_correct"]:
-        
         st.markdown("<br><br><br>", unsafe_allow_html=True)
         _, col_login, _ = st.columns([1.5, 2, 1.5])
-        
         with col_login:
             st.markdown("""
             <div style="background: #ffffff; padding: 40px 40px 10px 40px; border-top: 8px solid #001a70; border-radius: 4px 4px 0 0; text-align: center; box-shadow: 0 10px 30px rgba(0, 26, 112, 0.05); margin-bottom: -15px;">
                 <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#001a70" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 15px;">
-                    <rect x="1" y="3" width="15" height="13"></rect>
-                    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
-                    <circle cx="5.5" cy="18.5" r="2.5" fill="#ffb612" stroke="#ffb612"></circle>
-                    <circle cx="18.5" cy="18.5" r="2.5" fill="#ffb612" stroke="#ffb612"></circle>
+                    <rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+                    <circle cx="5.5" cy="18.5" r="2.5" fill="#ffb612" stroke="#ffb612"></circle><circle cx="18.5" cy="18.5" r="2.5" fill="#ffb612" stroke="#ffb612"></circle>
                 </svg>
                 <h2 style='margin-bottom: 5px; color: #001a70;'>TERMINAL eventySQM</h2>
                 <p style='color:#6b7280; font-size:14px; font-weight:bold; margin-bottom: 20px;'>SECURE LOGISTICS PORTAL</p>
             </div>
             """, unsafe_allow_html=True)
-            
             with st.container():
                 st.text_input("Identyfikator (Login):", key="username")
                 st.text_input("Kod dostępu (PIN):", type="password", key="password")
                 st.button("AUTORYZACJA", on_click=password_entered, type="primary", use_container_width=True)
-                
-            st.markdown("""
-            <div style="background: #ffffff; padding: 1px; border-bottom: 8px solid #ffb612; border-radius: 0 0 4px 4px; box-shadow: 0 10px 30px rgba(0, 26, 112, 0.05); margin-top: -15px;">
-            </div>
-            """, unsafe_allow_html=True)
-
-            if "password_correct" in st.session_state and not st.session_state["password_correct"]:
-                st.error("❌ Błędny identyfikator lub PIN")
+            st.markdown("""<div style="background: #ffffff; padding: 1px; border-bottom: 8px solid #ffb612; border-radius: 0 0 4px 4px; box-shadow: 0 10px 30px rgba(0, 26, 112, 0.05); margin-top: -15px;"></div>""", unsafe_allow_html=True)
+            if "password_correct" in st.session_state and not st.session_state["password_correct"]: st.error("❌ Błędny identyfikator lub PIN")
         return False
     return True
 
 if not check_password():
     st.stop()
 
-# --- 3. DATABASE CONNECTION ---
+# --- 3. BAZA DANYCH I KOLUMNY ---
 REQUIRED_COLS = [
     "Numer Zlecenia", "Nazwa Targów", "Przewoźnik", "Logistyk", "Kwota", "Dane Auta", "Kierowca", "Telefon", "Typ Transportu",
-    "Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Postój",
+    "Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Rozładunek Montaż 2", "Rozładunek Montaż 3", "Postój",
     "Wjazd po Empties", "Postój z Empties", "Dostawa Empties",
     "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny", "Notatka"
 ]
@@ -217,15 +186,17 @@ full_df = load_data()
 if st.session_state["role"] == "admin": view_df = full_df.copy()
 else: view_df = full_df[full_df["Przewoźnik"] == st.session_state["carrier_name"]].copy()
 
-# --- 4. GANTT CONFIGURATION ---
+# --- 4. KONFIGURACJA GANTTA (Z DODATKOWYMI ROZŁADUNKAMI) ---
 STAGES_DEF = [
     ("1. Załadunek", "Data Załadunku", "Data Załadunku", "#001a70"),       
-    ("2. Trasa", "Data Załadunku", "Rozładunek Montaż", "#005a9c"),         
-    ("3. Montaż/Postój", "Rozładunek Montaż", "Wjazd po Empties", "#9ca3af"),
-    ("4. Postój z Empties", "Wjazd po Empties", "Dostawa Empties", "#d1d5db"),
-    ("5. Oczekiwanie na Powrót", "Dostawa Empties", "Odbiór Pełnych", "#ffb612"), 
-    ("6. Trasa Powrót", "Odbiór Pełnych", "Rozładunek Powrotny", "#e6a100"),  
-    ("7. Rozładunek SQM", "Rozładunek Powrotny", "Rozładunek Powrotny", "#001a70") 
+    ("2. Trasa główna", "Data Załadunku", "Rozładunek Montaż", "#005a9c"),         
+    ("3. Dodatkowy Rozładunek", "Rozładunek Montaż 2", "Rozładunek Montaż 2", "#ffb612"),
+    ("3. Dodatkowy Rozładunek", "Rozładunek Montaż 3", "Rozładunek Montaż 3", "#ffb612"),
+    ("4. Montaż/Postój", "Rozładunek Montaż", "Wjazd po Empties", "#9ca3af"),
+    ("5. Postój z Empties", "Wjazd po Empties", "Dostawa Empties", "#d1d5db"),
+    ("6. Oczekiwanie na Powrót", "Dostawa Empties", "Odbiór Pełnych", "#ffb612"), 
+    ("7. Trasa Powrót", "Odbiór Pełnych", "Rozładunek Powrotny", "#e6a100"),  
+    ("8. Rozładunek SQM", "Rozładunek Powrotny", "Rozładunek Powrotny", "#001a70") 
 ]
 
 def get_status(row):
@@ -239,7 +210,7 @@ def get_status(row):
 
 def fmt(val): return "" if pd.isna(val) or str(val).lower() == "nan" else str(val)
 
-# --- 5. MAIN INTERFACE ---
+# --- 5. INTERFEJS GŁÓWNY ---
 st.title("eventySQM OPS CONTROL")
 st.caption(f"OPERATOR ZALOGOWANY: {st.session_state['carrier_name'].upper()} | POZIOM DOSTĘPU: {st.session_state['role'].upper()}")
 
@@ -264,11 +235,18 @@ with tabs[0]:
             num_zlec = fmt(row.get('Numer Zlecenia'))
             awb_text = f"AWB/REF: <b>{num_zlec}</b> &nbsp;|&nbsp; " if num_zlec else ""
             
-            # Kod kreskowy używa Numeru Zlecenia, a jeśli go brak, generuje ID ESQM
-            if num_zlec:
-                safe_barcode = re.sub(r'[^A-Z0-9]', '', num_zlec.upper())
-            else:
-                safe_barcode = f"ESQM{index}"
+            safe_barcode = re.sub(r'[^A-Z0-9]', '', num_zlec.upper()) if num_zlec else f"ESQM{index}"
+            
+            # Wychwytywanie opcjonalnych rozładunków by wyświetlić na bilecie
+            roz2 = row.get('Rozładunek Montaż 2')
+            roz3 = row.get('Rozładunek Montaż 3')
+            roz_dates = []
+            if pd.notnull(roz2): roz_dates.append(roz2.strftime('%d.%m.%Y'))
+            if pd.notnull(roz3): roz_dates.append(roz3.strftime('%d.%m.%Y'))
+            
+            extra_roz_html = ""
+            if roz_dates:
+                extra_roz_html = f"<div><span class='bp-label'>DODATKOWE ROZŁADUNKI</span><span class='bp-val'>{' | '.join(roz_dates)}</span></div>"
 
             html_card = f"""
 <div class="bp-card">
@@ -289,6 +267,7 @@ with tabs[0]:
             <div><span class="bp-label">KIEROWCA</span><span class="bp-val">{fmt(row.get('Kierowca'))}</span></div>
             <div><span class="bp-label">TELEFON</span><span class="bp-val">{fmt(row.get('Telefon'))}</span></div>
             <div><span class="bp-label">TYP TRANSPORTU</span><span class="bp-val">{typ_trans}</span></div>
+            {extra_roz_html}
             <div><span class="bp-label">KWOTA</span><span class="bp-val">{fmt(row.get('Kwota'))}</span></div>
         </div>
         <div class="bp-barcode">*{safe_barcode}*</div>
@@ -302,7 +281,7 @@ with tabs[0]:
             for stage, start_col, end_col, color in STAGES_DEF:
                 s_date = row.get(start_col); e_date = row.get(end_col)
                 if pd.isnull(s_date) or pd.isnull(e_date): continue
-                if typ_trans == "Tylko Dostawa" and stage not in ["1. Załadunek", "2. Trasa"]: continue
+                if typ_trans == "Tylko Dostawa" and stage not in ["1. Załadunek", "2. Trasa główna", "3. Dodatkowy Rozładunek"]: continue
                 if typ_trans == "Dostawa i Powrót (bez postoju)" and ("Postój" in stage or "Empties" in stage): continue
                 finish = e_date + timedelta(days=1) if s_date == e_date else e_date
                 if finish >= s_date:
@@ -331,14 +310,15 @@ with tabs[1]:
     m = folium.Map(location=[52.0, 19.0], zoom_start=5, tiles=google_tiles[map_type], attr='Google Maps')
     st_folium(m, width=1200, height=450)
 
-# --- TAB 3: GRAFIK FLOTY (ZAJĘTOŚĆ AUT) ---
+# --- TAB 3: GRAFIK FLOTY ---
 with tabs[2]:
     st.markdown("### 🗓️ ZAJĘTOŚĆ POJAZDÓW (GRAFIK ZBIORCZY)")
     st.caption("Wizualizacja dostępności poszczególnych samochodów. Każdy pasek to pełen cykl wyjazdu na dane targi.")
     
     if not view_df.empty:
         fleet_data = []
-        date_columns_to_check = ['Data Załadunku', 'Rozładunek Montaż', 'Wjazd po Empties', 'Dostawa Empties', 'Odbiór Pełnych', 'Rozładunek Powrotny']
+        # Uwzględnienie nowych kolumn rozładunkowych do wyznaczania maksymalnego czasu trasy
+        date_columns_to_check = ['Data Załadunku', 'Rozładunek Montaż', 'Rozładunek Montaż 2', 'Rozładunek Montaż 3', 'Wjazd po Empties', 'Dostawa Empties', 'Odbiór Pełnych', 'Rozładunek Powrotny']
         
         for _, row in view_df.iterrows():
             auto = fmt(row.get('Dane Auta'))
@@ -365,13 +345,8 @@ with tabs[2]:
             df_fleet = df_fleet.sort_values(by="Rejestracja")
             
             fig_fleet = px.timeline(
-                df_fleet, 
-                x_start="Start", 
-                x_end="Koniec", 
-                y="Rejestracja", 
-                color="Cel", 
-                hover_data=["Kierowca", "Zlecenie"],
-                template="plotly_white"
+                df_fleet, x_start="Start", x_end="Koniec", y="Rejestracja", color="Cel", 
+                hover_data=["Kierowca", "Zlecenie"], template="plotly_white"
             )
             fig_fleet.add_vline(x=datetime.now().timestamp() * 1000, line_dash="solid", line_width=2, line_color="#ef4444") 
             fig_fleet.update_yaxes(autorange="reversed") 
@@ -380,13 +355,7 @@ with tabs[2]:
             num_cars = len(df_fleet['Rejestracja'].unique())
             chart_height = max(300, num_cars * 45)
             
-            fig_fleet.update_layout(
-                height=chart_height,
-                margin=dict(t=30, b=0, l=0, r=0),
-                showlegend=True,
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)'
-            )
+            fig_fleet.update_layout(height=chart_height, margin=dict(t=30, b=0, l=0, r=0), showlegend=True, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_fleet, use_container_width=True)
         else:
             st.info("Brak wystarczających dat do wygenerowania grafiku.")
@@ -401,12 +370,8 @@ with tabs[3]:
         c1, c2, c3 = st.columns(3)
         nz = c1.text_input("Numer zlecenia (opcjonalnie)")
         nt = c2.text_input("Nazwa Targów*")
-        
-        if st.session_state["role"] == "admin": 
-            przew = c3.text_input("Przewoźnik*")
-        else: 
-            przew = st.session_state["carrier_name"]
-            c3.text_input("Przewoźnik", value=przew, disabled=True)
+        if st.session_state["role"] == "admin": przew = c3.text_input("Przewoźnik*")
+        else: przew = st.session_state["carrier_name"]; c3.text_input("Przewoźnik", value=przew, disabled=True)
             
         da = c1.text_input("Dane Auta*")
         ki = c2.text_input("Kierowca")
@@ -415,31 +380,40 @@ with tabs[3]:
         c4, c5 = st.columns(2)
         kw = c4.text_input("Kwota")
         t_type = c5.selectbox("Typ transportu", ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"])
-        
         no = st.text_area("Notatka / Sloty")
         
         st.divider()
-        st.markdown("### 🗓️ HARMONOGRAM")
+        st.markdown("### 🗓️ HARMONOGRAM ROZŁADUNKÓW")
         col1, col2 = st.columns(2)
         d_zal = col1.date_input("Załadunek SQM")
-        d_roz_m = col2.date_input("Rozładunek Montaż (Dostawa)")
+        d_roz_m = col2.date_input("Rozładunek 1 (Główny)")
+        
+        col2a, col2b = st.columns(2)
+        d_roz_m2 = col2a.date_input("Rozładunek 2 (Opcjonalnie)", value=None)
+        d_roz_m3 = col2b.date_input("Rozładunek 3 (Opcjonalnie)", value=None)
+        
         d_wj_e, d_do_e, d_od_p, d_ro_p = None, None, None, None
         
         if t_type != "Tylko Dostawa":
+            st.divider()
+            st.markdown("### 🗓️ HARMONOGRAM POWROTÓW / EMPTIES")
             col3, col4 = st.columns(2)
             if t_type == "Pełny Cykl (z postojem)":
-                d_wj_e = col3.date_input("Wjazd po Empties")
-                d_do_e = col4.date_input("Dostawa Empties")
+                d_wj_e = col3.date_input("Wjazd po Empties", value=None)
+                d_do_e = col4.date_input("Dostawa Empties", value=None)
             col5, col6 = st.columns(2)
-            d_od_p = col5.date_input("Odbiór Pełnych")
-            d_ro_p = col6.date_input("Rozładunek SQM (powrót)")
+            d_od_p = col5.date_input("Odbiór Pełnych", value=None)
+            d_ro_p = col6.date_input("Rozładunek SQM (powrót)", value=None)
 
         if st.form_submit_button("DODAJ DO SYSTEMU"):
             if nt and da and przew:
                 new_data = {
                     "Numer Zlecenia": nz, "Nazwa Targów": nt, "Przewoźnik": przew, "Logistyk": "Admin", "Kwota": kw, 
                     "Dane Auta": da, "Kierowca": ki, "Telefon": te, "Typ Transportu": t_type, "Notatka": no,
-                    "Data Załadunku": pd.to_datetime(d_zal), "Trasa Start": pd.to_datetime(d_zal), "Rozładunek Montaż": pd.to_datetime(d_roz_m),
+                    "Data Załadunku": pd.to_datetime(d_zal), "Trasa Start": pd.to_datetime(d_zal), 
+                    "Rozładunek Montaż": pd.to_datetime(d_roz_m),
+                    "Rozładunek Montaż 2": pd.to_datetime(d_roz_m2) if d_roz_m2 else None,
+                    "Rozładunek Montaż 3": pd.to_datetime(d_roz_m3) if d_roz_m3 else None,
                     "Wjazd po Empties": pd.to_datetime(d_wj_e) if d_wj_e else None,
                     "Dostawa Empties": pd.to_datetime(d_do_e) if d_do_e else None,
                     "Odbiór Pełnych": pd.to_datetime(d_od_p) if d_od_p else None,
@@ -463,12 +437,8 @@ with tabs[4]:
             c1, c2, c3 = st.columns(3)
             e_nz = c1.text_input("Numer zlecenia (opcjonalnie)", r.get('Numer Zlecenia', ''))
             e_nt = c2.text_input("Nazwa Targów", r['Nazwa Targów'])
-            
-            if st.session_state["role"] == "admin": 
-                e_przew = c3.text_input("Przewoźnik", r['Przewoźnik'])
-            else: 
-                e_przew = st.session_state["carrier_name"]
-                c3.text_input("Przewoźnik", value=e_przew, disabled=True)
+            if st.session_state["role"] == "admin": e_przew = c3.text_input("Przewoźnik", r['Przewoźnik'])
+            else: e_przew = st.session_state["carrier_name"]; c3.text_input("Przewoźnik", value=e_przew, disabled=True)
             
             e_da = c1.text_input("Dane Auta", r['Dane Auta'])
             e_ki = c2.text_input("Kierowca", r['Kierowca'])
@@ -478,26 +448,35 @@ with tabs[4]:
             e_kw = c4.text_input("Kwota", r['Kwota'])
             e_typ = c5.selectbox("Typ transportu", ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"], 
                                  index=["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"].index(r['Typ Transportu']) if r['Typ Transportu'] in ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"] else 0)
-            
             e_no = st.text_area("Notatka", r['Notatka'])
             
-            def dv(v): return v.date() if pd.notnull(v) else datetime.now().date()
+            def dv(v): return v.date() if pd.notnull(v) else None
+            def dv_req(v): return v.date() if pd.notnull(v) else datetime.now().date()
             
             st.divider()
+            st.markdown("### 🗓️ HARMONOGRAM ROZŁADUNKÓW")
             ce1, ce2 = st.columns(2)
-            ed_zal = ce1.date_input("Załadunek SQM", dv(r['Data Załadunku']))
-            ed_roz_m = ce2.date_input("Rozładunek Montaż", dv(r['Rozładunek Montaż']))
+            ed_zal = ce1.date_input("Załadunek SQM", dv_req(r['Data Załadunku']))
+            ed_roz_m = ce2.date_input("Rozładunek 1 (Główny)", dv_req(r['Rozładunek Montaż']))
+            
+            ce2a, ce2b = st.columns(2)
+            ed_roz_m2 = ce2a.date_input("Rozładunek 2 (Opcjonalnie)", value=dv(r.get('Rozładunek Montaż 2')))
+            ed_roz_m3 = ce2b.date_input("Rozładunek 3 (Opcjonalnie)", value=dv(r.get('Rozładunek Montaż 3')))
+            
+            st.divider()
+            st.markdown("### 🗓️ HARMONOGRAM POWROTÓW / EMPTIES")
             ce3, ce4 = st.columns(2)
-            ed_wj_e = ce3.date_input("Wjazd po Empties", dv(r['Wjazd po Empties']))
-            ed_do_e = ce4.date_input("Dostawa Empties", dv(r['Dostawa Empties']))
+            ed_wj_e = ce3.date_input("Wjazd po Empties", value=dv(r.get('Wjazd po Empties')))
+            ed_do_e = ce4.date_input("Dostawa Empties", value=dv(r.get('Dostawa Empties')))
             ce5, ce6 = st.columns(2)
-            ed_od_p = ce5.date_input("Odbiór Pełnych", dv(r['Odbiór Pełnych']))
-            ed_ro_p = ce6.date_input("Rozładunek SQM (powrót)", dv(r['Rozładunek Powrotny']))
+            ed_od_p = ce5.date_input("Odbiór Pełnych", value=dv(r.get('Odbiór Pełnych')))
+            ed_ro_p = ce6.date_input("Rozładunek SQM (powrót)", value=dv(r.get('Rozładunek Powrotny')))
 
             if st.form_submit_button("ZAPISZ KOREKTĘ"):
                 full_df.loc[real_idx, ["Numer Zlecenia", "Nazwa Targów", "Przewoźnik", "Kwota", "Dane Auta", "Kierowca", "Telefon", "Typ Transportu", "Notatka"]] = [e_nz, e_nt, e_przew, e_kw, e_da, e_ki, e_te, e_typ, e_no]
-                full_df.loc[real_idx, ["Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = [pd.to_datetime(ed_zal), pd.to_datetime(ed_zal), pd.to_datetime(ed_roz_m), pd.to_datetime(ed_od_p), pd.to_datetime(ed_od_p), pd.to_datetime(ed_ro_p)]
-                full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties"]] = [pd.to_datetime(ed_wj_e), pd.to_datetime(ed_do_e)]
+                full_df.loc[real_idx, ["Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = [pd.to_datetime(ed_zal), pd.to_datetime(ed_zal), pd.to_datetime(ed_roz_m), pd.to_datetime(ed_od_p) if ed_od_p else None, pd.to_datetime(ed_od_p) if ed_od_p else None, pd.to_datetime(ed_ro_p) if ed_ro_p else None]
+                full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties"]] = [pd.to_datetime(ed_wj_e) if ed_wj_e else None, pd.to_datetime(ed_do_e) if ed_do_e else None]
+                full_df.loc[real_idx, ["Rozładunek Montaż 2", "Rozładunek Montaż 3"]] = [pd.to_datetime(ed_roz_m2) if ed_roz_m2 else None, pd.to_datetime(ed_roz_m3) if ed_roz_m3 else None]
 
                 if e_typ == "Dostawa i Powrót (bez postoju)": full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties"]] = None
                 elif e_typ == "Tylko Dostawa": full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = None

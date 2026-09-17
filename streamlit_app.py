@@ -95,11 +95,19 @@ st.markdown("""
         margin-top: 15px; font-family: 'Space Mono', monospace; font-size: 13px; color: #001a70;
     }
     
-    /* KIOSK LOGOWANIA */
-    .checkin-kiosk { 
-        max-width: 450px; margin: 100px auto; background: #ffffff; 
-        padding: 40px; border-top: 8px solid #001a70; border-bottom: 8px solid #ffb612;
-        box-shadow: 0 10px 30px rgba(0, 26, 112, 0.1); text-align: center; border-radius: 4px;
+    /* STYLIZACJA PRZYCISKU LOGOWANIA (LH BLUE) */
+    div.stButton > button[kind="primary"] {
+        background-color: #001a70;
+        color: white;
+        border: none;
+        font-weight: bold;
+        letter-spacing: 1px;
+        border-radius: 4px;
+        padding: 10px 0;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        background-color: #ffb612;
+        color: #001a70;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -126,19 +134,29 @@ def check_password():
                 st.session_state["role"] = user_row.iloc[0]["Rola"]
                 st.session_state["carrier_name"] = user_row.iloc[0]["Przewoznik"]
                 st.session_state["session_expiry"] = (datetime.now() + timedelta(days=30)).timestamp()
-                del st.session_state["password"]
             else: st.session_state["password_correct"] = False
         else: st.session_state["password_correct"] = False
 
     if "session_expiry" in st.session_state and datetime.now().timestamp() < st.session_state["session_expiry"]: return True
     if "password_correct" not in st.session_state or not st.session_state["password_correct"]:
-        st.markdown('<div class="checkin-kiosk">', unsafe_allow_html=True)
-        st.markdown("<h2 style='margin-bottom: 5px;'>TERMINAL eventySQM</h2><p style='color:#6b7280; font-size:14px; font-weight:bold; margin-bottom: 25px;'>SECURE LOGISTICS PORTAL</p>", unsafe_allow_html=True)
-        st.text_input("Identyfikator (Login):", key="username")
-        st.text_input("Kod dostępu (PIN):", type="password", on_change=password_entered, key="password")
-        if "password_correct" in st.session_state and not st.session_state["password_correct"]:
-            st.error("❌ Błędny identyfikator lub PIN")
-        st.markdown('</div>', unsafe_allow_html=True)
+        # NAPRAWIONY UKŁAD LOGOWANIA (Wyśrodkowane kolumny)
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
+        _, col_login, _ = st.columns([1.5, 2, 1.5])
+        
+        with col_login:
+            st.markdown("""
+            <div style="text-align: center; border-bottom: 5px solid #ffb612; padding-bottom: 15px; margin-bottom: 25px;">
+                <h2 style='margin-bottom: 5px; color: #001a70;'>TERMINAL eventySQM</h2>
+                <p style='color:#6b7280; font-size:14px; font-weight:bold; margin-bottom: 0;'>SECURE LOGISTICS PORTAL</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.text_input("Identyfikator (Login):", key="username")
+            st.text_input("Kod dostępu (PIN):", type="password", key="password")
+            st.button("AUTORYZACJA", on_click=password_entered, type="primary", use_container_width=True)
+            
+            if "password_correct" in st.session_state and not st.session_state["password_correct"]:
+                st.error("❌ Błędny identyfikator lub PIN")
         return False
     return True
 

@@ -147,7 +147,7 @@ if not check_password():
 
 # --- 3. POŁĄCZENIE Z ARKUSZEM BAZOWYM ---
 REQUIRED_COLS = [
-    "Nazwa Targów", "Przewoźnik", "Logistyk", "Kwota", "Dane Auta", "Kierowca", "Telefon", "Typ Transportu",
+    "Numer Zlecenia", "Nazwa Targów", "Przewoźnik", "Logistyk", "Kwota", "Dane Auta", "Kierowca", "Telefon", "Typ Transportu",
     "Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Postój",
     "Wjazd po Empties", "Postój z Empties", "Dostawa Empties",
     "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny", "Notatka"
@@ -213,6 +213,9 @@ with tabs[0]:
             typ_trans = fmt(row.get('Typ Transportu'))
             status_class = "status-realizacja" if status == "W REALIZACJI" else ("status-zakonczony" if status == "ZAKOŃCZONY" else "status-oczekuje")
             
+            num_zlec = fmt(row.get('Numer Zlecenia'))
+            awb_text = f"AWB/REF: <b>{num_zlec}</b> &nbsp;|&nbsp; " if num_zlec else ""
+            
             safe_barcode = re.sub(r'[^A-Z0-9]', '', str(row['Dane Auta']).upper())
             if not safe_barcode: safe_barcode = f"VECTURA{index}"
 
@@ -220,7 +223,7 @@ with tabs[0]:
                 <div class="bp-card">
                     <div class="bp-header">
                         <div class="bp-logo">✈ VECTURA CARGO</div>
-                        <div class="bp-flight">REJESTRACJA / AUTO: {fmt(row['Dane Auta'])}</div>
+                        <div class="bp-flight">{awb_text}AUTO: {fmt(row['Dane Auta'])}</div>
                     </div>
                     <div class="bp-body">
                         <div class="bp-main-info">
@@ -306,14 +309,11 @@ with tabs[2]:
             auto = fmt(row.get('Dane Auta'))
             if not auto: continue
             
-            # Zbieranie wszystkich wpisanych dat dla danego zlecenia
             row_dates = [row[col] for col in date_columns_to_check if pd.notnull(row.get(col))]
             
             if row_dates:
                 start_date = min(row_dates)
                 end_date = max(row_dates)
-                
-                # Dodanie jednego dnia, jeśli daty są identyczne, by pasek na wykresie był widoczny
                 finish_date = end_date + timedelta(days=1) if start_date == end_date else end_date
                 
                 fleet_data.append({
@@ -321,7 +321,8 @@ with tabs[2]:
                     "Cel": str(row['Nazwa Targów']),
                     "Start": start_date,
                     "Koniec": finish_date,
-                    "Kierowca": fmt(row.get('Kierowca'))
+                    "Kierowca": fmt(row.get('Kierowca')),
+                    "Zlecenie": fmt(row.get('Numer Zlecenia'))
                 })
                 
         if fleet_data:
@@ -334,15 +335,13 @@ with tabs[2]:
                 x_end="Koniec", 
                 y="Rejestracja", 
                 color="Cel", 
-                hover_data=["Kierowca"],
+                hover_data=["Kierowca", "Zlecenie"],
                 template="plotly_white"
             )
-            # Dodanie czerwonej linii "DZIŚ"
             fig_fleet.add_vline(x=datetime.now().timestamp() * 1000, line_dash="solid", line_width=2, line_color="#ef4444") 
-            fig_fleet.update_yaxes(autorange="reversed") # Kolejność alfabetyczna od góry
+            fig_fleet.update_yaxes(autorange="reversed") 
             fig_fleet.update_xaxes(dtick="D1", tickformat="%d.%m", side="top", showgrid=True, gridcolor='#e5e7eb')
             
-            # Dynamiczna wysokość wykresu bazująca na liczbie aut
             num_cars = len(df_fleet['Rejestracja'].unique())
             chart_height = max(300, num_cars * 45)
             
@@ -363,17 +362,25 @@ with tabs[2]:
 with tabs[3]:
     with st.form("add_form"):
         st.subheader("REJESTRACJA TRANSPORTU")
-        c1, c2, c3 = st.columns(3)
-        nt = c1.text_input("Nazwa Targów*")
         
-        if st.session_state["role"] == "admin": przew = c2.text_input("Przewoźnik*")
-        else: przew = st.session_state["carrier_name"]; c2.text_input("Przewoźnik", value=przew, disabled=True)
+        c1, c2, c3 = st.columns(3)
+        nz = c1.text_input("Numer zlecenia (opcjonalnie)")
+        nt = c2.text_input("Nazwa Targów*")
+        
+        if st.session_state["role"] == "admin": 
+            przew = c3.text_input("Przewoźnik*")
+        else: 
+            przew = st.session_state["carrier_name"]
+            c3.text_input("Przewoźnik", value=przew, disabled=True)
             
-        kw = c3.text_input("Kwota")
         da = c1.text_input("Dane Auta*")
         ki = c2.text_input("Kierowca")
         te = c3.text_input("Telefon")
-        t_type = st.selectbox("Typ transportu", ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"])
+        
+        c4, c5 = st.columns(2)
+        kw = c4.text_input("Kwota")
+        t_type = c5.selectbox("Typ transportu", ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"])
+        
         no = st.text_area("Notatka / Sloty")
         
         st.divider()
@@ -395,7 +402,7 @@ with tabs[3]:
         if st.form_submit_button("DODAJ DO SYSTEMU"):
             if nt and da and przew:
                 new_data = {
-                    "Nazwa Targów": nt, "Przewoźnik": przew, "Logistyk": "Admin", "Kwota": kw, 
+                    "Numer Zlecenia": nz, "Nazwa Targów": nt, "Przewoźnik": przew, "Logistyk": "Admin", "Kwota": kw, 
                     "Dane Auta": da, "Kierowca": ki, "Telefon": te, "Typ Transportu": t_type, "Notatka": no,
                     "Data Załadunku": pd.to_datetime(d_zal), "Trasa Start": pd.to_datetime(d_zal), "Rozładunek Montaż": pd.to_datetime(d_roz_m),
                     "Wjazd po Empties": pd.to_datetime(d_wj_e) if d_wj_e else None,
@@ -419,17 +426,24 @@ with tabs[4]:
         
         with st.form("edit_form"):
             c1, c2, c3 = st.columns(3)
-            e_nt = c1.text_input("Nazwa Targów", r['Nazwa Targów'])
+            e_nz = c1.text_input("Numer zlecenia (opcjonalnie)", r.get('Numer Zlecenia', ''))
+            e_nt = c2.text_input("Nazwa Targów", r['Nazwa Targów'])
             
-            if st.session_state["role"] == "admin": e_przew = c2.text_input("Przewoźnik", r['Przewoźnik'])
-            else: e_przew = st.session_state["carrier_name"]; c2.text_input("Przewoźnik", value=e_przew, disabled=True)
+            if st.session_state["role"] == "admin": 
+                e_przew = c3.text_input("Przewoźnik", r['Przewoźnik'])
+            else: 
+                e_przew = st.session_state["carrier_name"]
+                c3.text_input("Przewoźnik", value=e_przew, disabled=True)
             
-            e_kw = c3.text_input("Kwota", r['Kwota'])
             e_da = c1.text_input("Dane Auta", r['Dane Auta'])
             e_ki = c2.text_input("Kierowca", r['Kierowca'])
             e_te = c3.text_input("Telefon", r['Telefon'])
-            e_typ = st.selectbox("Typ transportu", ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"], 
+            
+            c4, c5 = st.columns(2)
+            e_kw = c4.text_input("Kwota", r['Kwota'])
+            e_typ = c5.selectbox("Typ transportu", ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"], 
                                  index=["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"].index(r['Typ Transportu']) if r['Typ Transportu'] in ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"] else 0)
+            
             e_no = st.text_area("Notatka", r['Notatka'])
             
             def dv(v): return v.date() if pd.notnull(v) else datetime.now().date()
@@ -446,7 +460,7 @@ with tabs[4]:
             ed_ro_p = ce6.date_input("Rozładunek SQM (powrót)", dv(r['Rozładunek Powrotny']))
 
             if st.form_submit_button("ZAPISZ KOREKTĘ"):
-                full_df.loc[real_idx, ["Nazwa Targów", "Przewoźnik", "Kwota", "Dane Auta", "Kierowca", "Telefon", "Typ Transportu", "Notatka"]] = [e_nt, e_przew, e_kw, e_da, e_ki, e_te, e_typ, e_no]
+                full_df.loc[real_idx, ["Numer Zlecenia", "Nazwa Targów", "Przewoźnik", "Kwota", "Dane Auta", "Kierowca", "Telefon", "Typ Transportu", "Notatka"]] = [e_nz, e_nt, e_przew, e_kw, e_da, e_ki, e_te, e_typ, e_no]
                 full_df.loc[real_idx, ["Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = [pd.to_datetime(ed_zal), pd.to_datetime(ed_zal), pd.to_datetime(ed_roz_m), pd.to_datetime(ed_od_p), pd.to_datetime(ed_od_p), pd.to_datetime(ed_ro_p)]
                 full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties"]] = [pd.to_datetime(ed_wj_e), pd.to_datetime(ed_do_e)]
 

@@ -31,12 +31,12 @@ st.markdown("""
         border-radius: 6px;
         margin: 20px 0 30px 0;
         box-shadow: 0 4px 15px rgba(0, 26, 112, 0.05);
-        border-left: 10px solid #ffb612; /* Lufthansa Yellow */
+        border-left: 10px solid #ffb612;
         overflow: hidden;
     }
     
     .bp-header {
-        background: #001a70; /* Lufthansa Blue */
+        background: #001a70;
         color: #ffffff;
         padding: 12px 25px;
         display: flex;
@@ -104,7 +104,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. BAZA UŻYTKOWNIKÓW Z GOOGLE SHEETS I LOGIKA HASŁA ---
+# --- 2. BAZA UŻYTKOWNIKÓW I LOGIKA HASŁA ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 @st.cache_data(ttl=60)
@@ -169,7 +169,7 @@ full_df = load_data()
 if st.session_state["role"] == "admin": view_df = full_df.copy()
 else: view_df = full_df[full_df["Przewoźnik"] == st.session_state["carrier_name"]].copy()
 
-# --- 4. KONFIGURACJA GANTTA (KOLORY LUFTHANSA) ---
+# --- 4. KONFIGURACJA ZMIENNYCH ---
 STAGES_DEF = [
     ("1. Załadunek", "Data Załadunku", "Data Załadunku", "#001a70"),       
     ("2. Trasa", "Data Załadunku", "Rozładunek Montaż", "#005a9c"),         
@@ -196,9 +196,9 @@ st.title("VECTURA OPS CONTROL")
 st.caption(f"OPERATOR ZALOGOWANY: {st.session_state['carrier_name'].upper()} | POZIOM DOSTĘPU: {st.session_state['role'].upper()}")
 
 if st.session_state["role"] == "admin":
-    tabs = st.tabs(["✈️ MONITORING (LIVE)", "🗺️ MAPA TRAS", "➕ NOWE ZLECENIE", "✏️ EDYCJA", "📋 BAZA DANYCH", "🗑️ USUŃ"])
+    tabs = st.tabs(["✈️ MONITORING (LIVE)", "🗺️ MAPA TRAS", "🗓️ GRAFIK FLOTY", "➕ NOWE ZLECENIE", "✏️ EDYCJA", "📋 BAZA DANYCH", "🗑️ USUŃ"])
 else:
-    tabs = st.tabs(["✈️ MONITORING (LIVE)", "🗺️ MAPA TRAS", "➕ NOWE ZLECENIE", "✏️ EDYCJA", "📋 BAZA DANYCH"])
+    tabs = st.tabs(["✈️ MONITORING (LIVE)", "🗺️ MAPA TRAS", "🗓️ GRAFIK FLOTY", "➕ NOWE ZLECENIE", "✏️ EDYCJA", "📋 BAZA DANYCH"])
 
 # --- TAB 1: MONITORING (LIVE) ---
 with tabs[0]:
@@ -211,7 +211,6 @@ with tabs[0]:
         for index, row in view_df.iterrows():
             status = get_status(row)
             typ_trans = fmt(row.get('Typ Transportu'))
-            
             status_class = "status-realizacja" if status == "W REALIZACJI" else ("status-zakonczony" if status == "ZAKOŃCZONY" else "status-oczekuje")
             
             safe_barcode = re.sub(r'[^A-Z0-9]', '', str(row['Dane Auta']).upper())
@@ -282,34 +281,86 @@ with tabs[0]:
     else:
         st.info("Brak aktywnych zleceń na tablicy.")
 
-# --- TAB 2: MAPA TRAS (Z GOOGLE MAPS) ---
+# --- TAB 2: MAPA TRAS ---
 with tabs[1]:
     st.markdown("### 🗺️ GLOBALNY RADAR TRAS")
-    
-    map_type = st.radio(
-        "WYBIERZ TYP MAPY:", 
-        ["DROGOWA", "SATELITA", "TEREN"], 
-        horizontal=True,
-        label_visibility="collapsed"
-    )
-    
+    map_type = st.radio("WYBIERZ TYP MAPY:", ["DROGOWA", "SATELITA", "TEREN"], horizontal=True, label_visibility="collapsed")
     google_tiles = {
         "DROGOWA": "http://mt0.google.com/vt/lyrs=m&hl=pl&x={x}&y={y}&z={z}",
         "SATELITA": "http://mt0.google.com/vt/lyrs=s&hl=pl&x={x}&y={y}&z={z}",
         "TEREN": "http://mt0.google.com/vt/lyrs=p&hl=pl&x={x}&y={y}&z={z}"
     }
-    
-    m = folium.Map(
-        location=[52.0, 19.0], 
-        zoom_start=5, 
-        tiles=google_tiles[map_type], 
-        attr='Google Maps'
-    )
-    
+    m = folium.Map(location=[52.0, 19.0], zoom_start=5, tiles=google_tiles[map_type], attr='Google Maps')
     st_folium(m, width=1200, height=450)
 
-# --- TAB 3: NOWE ZLECENIE ---
+# --- TAB 3: GRAFIK FLOTY (ZAJĘTOŚĆ AUT) ---
 with tabs[2]:
+    st.markdown("### 🗓️ ZAJĘTOŚĆ POJAZDÓW (GRAFIK ZBIORCZY)")
+    st.caption("Wizualizacja dostępności poszczególnych samochodów. Każdy pasek to pełen cykl wyjazdu na dane targi.")
+    
+    if not view_df.empty:
+        fleet_data = []
+        date_columns_to_check = ['Data Załadunku', 'Rozładunek Montaż', 'Wjazd po Empties', 'Dostawa Empties', 'Odbiór Pełnych', 'Rozładunek Powrotny']
+        
+        for _, row in view_df.iterrows():
+            auto = fmt(row.get('Dane Auta'))
+            if not auto: continue
+            
+            # Zbieranie wszystkich wpisanych dat dla danego zlecenia
+            row_dates = [row[col] for col in date_columns_to_check if pd.notnull(row.get(col))]
+            
+            if row_dates:
+                start_date = min(row_dates)
+                end_date = max(row_dates)
+                
+                # Dodanie jednego dnia, jeśli daty są identyczne, by pasek na wykresie był widoczny
+                finish_date = end_date + timedelta(days=1) if start_date == end_date else end_date
+                
+                fleet_data.append({
+                    "Rejestracja": auto,
+                    "Cel": str(row['Nazwa Targów']),
+                    "Start": start_date,
+                    "Koniec": finish_date,
+                    "Kierowca": fmt(row.get('Kierowca'))
+                })
+                
+        if fleet_data:
+            df_fleet = pd.DataFrame(fleet_data)
+            df_fleet = df_fleet.sort_values(by="Rejestracja")
+            
+            fig_fleet = px.timeline(
+                df_fleet, 
+                x_start="Start", 
+                x_end="Koniec", 
+                y="Rejestracja", 
+                color="Cel", 
+                hover_data=["Kierowca"],
+                template="plotly_white"
+            )
+            # Dodanie czerwonej linii "DZIŚ"
+            fig_fleet.add_vline(x=datetime.now().timestamp() * 1000, line_dash="solid", line_width=2, line_color="#ef4444") 
+            fig_fleet.update_yaxes(autorange="reversed") # Kolejność alfabetyczna od góry
+            fig_fleet.update_xaxes(dtick="D1", tickformat="%d.%m", side="top", showgrid=True, gridcolor='#e5e7eb')
+            
+            # Dynamiczna wysokość wykresu bazująca na liczbie aut
+            num_cars = len(df_fleet['Rejestracja'].unique())
+            chart_height = max(300, num_cars * 45)
+            
+            fig_fleet.update_layout(
+                height=chart_height,
+                margin=dict(t=30, b=0, l=0, r=0),
+                showlegend=True,
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_fleet, use_container_width=True)
+        else:
+            st.info("Brak wystarczających dat do wygenerowania grafiku.")
+    else:
+        st.info("Baza pojazdów jest pusta.")
+
+# --- TAB 4: NOWE ZLECENIE ---
+with tabs[3]:
     with st.form("add_form"):
         st.subheader("REJESTRACJA TRANSPORTU")
         c1, c2, c3 = st.columns(3)
@@ -356,8 +407,8 @@ with tabs[2]:
                 conn.update(worksheet="VECTURA", data=combined)
                 st.success("Zlecenie dodane!"); time.sleep(1); st.rerun()
 
-# --- TAB 4: EDYCJA ---
-with tabs[3]:
+# --- TAB 5: EDYCJA ---
+with tabs[4]:
     if not view_df.empty:
         view_df['key'] = view_df['Nazwa Targów'].astype(str) + " | " + view_df['Dane Auta'].astype(str)
         sel = st.selectbox("Wybierz zlecenie do aktualizacji:", view_df['key'].unique())
@@ -405,12 +456,12 @@ with tabs[3]:
                 conn.update(worksheet="VECTURA", data=full_df[REQUIRED_COLS])
                 st.success("Zaktualizowano w bazie."); time.sleep(1); st.rerun()
 
-# --- TAB 5: BAZA ---
-with tabs[4]: st.dataframe(view_df[REQUIRED_COLS], use_container_width=True)
+# --- TAB 6: BAZA ---
+with tabs[5]: st.dataframe(view_df[REQUIRED_COLS], use_container_width=True)
 
-# --- TAB 6: USUŃ ---
+# --- TAB 7: USUŃ ---
 if st.session_state["role"] == "admin":
-    with tabs[5]:
+    with tabs[6]:
         if not full_df.empty:
             full_df['key'] = full_df['Nazwa Targów'].astype(str) + " | " + full_df['Dane Auta'].astype(str)
             target = st.selectbox("Usuń zlecenie:", full_df['key'].unique(), key="del_sel")

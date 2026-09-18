@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import plotly.express as px
@@ -8,7 +9,7 @@ import folium
 from streamlit_folium import st_folium
 import re
 
-# --- 1. KONFIGURACJA UI I STYLÓW (LUFTHANSA CARGO + PL TERMINOLOGIA) ---
+# --- 1. KONFIGURACJA UI I STYLÓW ---
 st.set_page_config(page_title="eventySQM | Ops Control", layout="wide", page_icon="🚛")
 
 st.markdown("""
@@ -179,6 +180,10 @@ def load_data():
         for col in REQUIRED_COLS:
             if any(k in col for k in ["Data", "Trasa", "Rozładunek", "Postój", "Wjazd", "Dostawa", "Odbiór"]):
                 data[col] = pd.to_datetime(data[col], errors='coerce')
+            else:
+                # KLUCZOWA POPRAWKA BŁĘDU TYPÓW (LossySetitemError): 
+                # Zmuszamy pandas, aby zawsze traktował pozostałe kolumny jako bezpieczne pola tekstowe
+                data[col] = data[col].astype("object").fillna("")
         return data.dropna(subset=['Nazwa Targów', 'Dane Auta'], how='all')
     except: return pd.DataFrame(columns=REQUIRED_COLS)
 

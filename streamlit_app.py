@@ -1136,11 +1136,11 @@ with tabs[0]:
                 if st.button("✎ EDYTUJ", key=f"edit_{index}", use_container_width=True):
                     edit_order_dialog(index)
             with b2:
-                if st.button("▣ SZCZEGÓŁY", key=f"details_{index}", use_container_width=True):
-                    st.session_state[f"details_{index}"] = not st.session_state.get(f"details_{index}", False)
+                if st.button("▣ SZCZEGÓŁY", key=f"details_btn_{index}", use_container_width=True):
+                    st.session_state[f"show_details_{index}"] = not st.session_state.get(f"show_details_{index}", False)
                     st.rerun()
 
-            if st.session_state.get(f"details_{index}", False):
+            if st.session_state.get(f"show_details_{index}", False):
                 with st.expander("SZCZEGÓŁOWY HARMONOGRAM", expanded=True):
                     detail_cols = [
                         "Data Załadunku", "Rozładunek Montaż", "Rozładunek Montaż 2",

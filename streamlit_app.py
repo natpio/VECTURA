@@ -16,27 +16,81 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+39+Text&family=Inter:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap');
     
-    /* HIDE STREAMLIT BRANDING */
+    /* UKRYCIE BRANDINGU STREAMLIT */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     .viewerBadge_container__1QSob {display: none !important;}
     
-    /* MAIN BACKGROUND */
+    /* GŁÓWNE TŁO */
     .stApp { 
         background-color: #f2f4f8 !important; 
         font-family: 'Inter', Helvetica, Arial, sans-serif !important;
     }
     
-    /* HEADERS */
-    h1, h2, h3 { color: #001a70 !important; font-weight: 700; text-transform: uppercase; letter-spacing: -0.5px;}
+    /* STYLIZACJA ZAKŁADEK (TABS) NA LOTNICZE PRZYCISKI */
+    div[data-testid="stTabs"] button {
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        color: #6b7280 !important;
+        background-color: transparent !important;
+        border-radius: 4px 4px 0 0 !important;
+        border: none !important;
+        border-bottom: 4px solid transparent !important;
+        padding: 10px 24px !important;
+        transition: all 0.2s ease-in-out !important;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    div[data-testid="stTabs"] button[aria-selected="true"] {
+        color: #001a70 !important;
+        background-color: rgba(255, 182, 18, 0.1) !important;
+        border-bottom: 4px solid #ffb612 !important;
+    }
+    div[data-testid="stTabs"] button:hover {
+        color: #001a70 !important;
+    }
+    div[data-testid="stTabs"] button:focus {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+
+    /* CUSTOMOWE KARTY PODSUMOWAŃ (KPI DASHBOARD) */
+    .kpi-wrapper {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 30px;
+        margin-top: 10px;
+    }
+    .kpi-card {
+        flex: 1;
+        background: #ffffff;
+        padding: 20px 25px;
+        border-radius: 6px;
+        box-shadow: 0 4px 15px rgba(0, 26, 112, 0.05);
+        border-top: 5px solid;
+    }
+    .kpi-label {
+        font-size: 12px;
+        color: #6b7280;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+    .kpi-val {
+        font-size: 40px;
+        color: #001a70;
+        font-weight: 700;
+        line-height: 1.2;
+    }
     
     /* BOARDING PASS CARD */
     .bp-card {
         background: #ffffff;
         border: 1px solid #e5e7eb;
         border-radius: 6px;
-        margin: 20px 0 30px 0;
+        margin: 20px 0 20px 0;
         box-shadow: 0 4px 15px rgba(0, 26, 112, 0.05);
         border-left: 10px solid #ffb612;
         overflow: hidden;
@@ -100,6 +154,20 @@ st.markdown("""
     .ssr-remarks { 
         background: #fef3c7; border-left: 4px solid #ffb612; padding: 12px 15px; 
         margin-top: 15px; font-family: 'Space Mono', monospace; font-size: 15px; color: #001a70;
+    }
+
+    /* STYLIZACJA ROZWIJANEGO PANELU EDYCJI */
+    div[data-testid="stExpander"] details {
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        background-color: #f9fafb;
+        margin-bottom: 30px;
+    }
+    div[data-testid="stExpander"] summary {
+        font-family: 'Inter', sans-serif;
+        font-weight: 700;
+        color: #001a70;
+        padding: 10px 15px;
     }
 
     /* PRZYCISKI PRIMARY */
@@ -181,8 +249,6 @@ def load_data():
             if any(k in col for k in ["Data", "Trasa", "Rozładunek", "Postój", "Wjazd", "Dostawa", "Odbiór"]):
                 data[col] = pd.to_datetime(data[col], errors='coerce')
             else:
-                # KLUCZOWA POPRAWKA BŁĘDU TYPÓW (LossySetitemError): 
-                # Zmuszamy pandas, aby zawsze traktował pozostałe kolumny jako bezpieczne pola tekstowe
                 data[col] = data[col].astype("object").fillna("")
         return data.dropna(subset=['Nazwa Targów', 'Dane Auta'], how='all')
     except: return pd.DataFrame(columns=REQUIRED_COLS)
@@ -191,7 +257,7 @@ full_df = load_data()
 if st.session_state["role"] == "admin": view_df = full_df.copy()
 else: view_df = full_df[full_df["Przewoźnik"] == st.session_state["carrier_name"]].copy()
 
-# --- 4. KONFIGURACJA GANTTA ---
+# --- 4. KONFIGURACJA GANTTA I ZMIENNYCH ---
 STAGES_DEF = [
     ("1. Załadunek", "Data Załadunku", "Data Załadunku", "#001a70"),       
     ("2. Trasa główna", "Data Załadunku", "Rozładunek Montaż", "#005a9c"),         
@@ -215,20 +281,19 @@ def get_status(row):
 
 def fmt(val): return "" if pd.isna(val) or str(val).lower() == "nan" else str(val)
 
+def fmt_d(v): return v.strftime('%Y-%m-%d') if pd.notnull(v) else ""
+
 def parse_date_input(val_str):
-    if not val_str or not val_str.strip():
-        return None
-    try:
-        return pd.to_datetime(val_str.strip(), errors='coerce')
-    except:
-        return None
+    if not val_str or not val_str.strip(): return None
+    try: return pd.to_datetime(val_str.strip(), errors='coerce')
+    except: return None
 
 # --- 5. INTERFEJS GŁÓWNY ---
 col_title, col_refresh = st.columns([5, 1])
 
 with col_title:
-    st.title("eventySQM OPS CONTROL")
-    st.caption(f"OPERATOR ZALOGOWANY: {st.session_state['carrier_name'].upper()} | POZIOM DOSTĘPU: {st.session_state['role'].upper()}")
+    st.markdown("<h2 style='color:#001a70; font-weight:800; margin-bottom:0;'>eventySQM OPS CONTROL</h2>", unsafe_allow_html=True)
+    st.caption(f"OPERATOR ZALOGOWANY: **{st.session_state['carrier_name'].upper()}** | POZIOM DOSTĘPU: **{st.session_state['role'].upper()}**")
 
 with col_refresh:
     st.write("") 
@@ -236,19 +301,39 @@ with col_refresh:
         load_data.clear()
         st.rerun()
 
+# Usunięta zakładka EDYCJA z głównego menu - teraz jest wbudowana w MONITORING
 if st.session_state["role"] == "admin":
-    tabs = st.tabs(["✈️ MONITORING (LIVE)", "🗺️ MAPA TRAS", "🗓️ GRAFIK FLOTY", "➕ NOWE ZLECENIE", "✏️ EDYCJA", "📋 BAZA DANYCH", "🗑️ USUŃ"])
+    tabs = st.tabs(["✈️ MONITORING (LIVE)", "🗺️ MAPA TRAS", "🗓️ GRAFIK FLOTY", "➕ NOWE ZLECENIE", "📋 BAZA DANYCH", "🗑️ USUŃ"])
 else:
-    tabs = st.tabs(["✈️ MONITORING (LIVE)", "🗺️ MAPA TRAS", "🗓️ GRAFIK FLOTY", "➕ NOWE ZLECENIE", "✏️ EDYCJA", "📋 BAZA DANYCH"])
+    tabs = st.tabs(["✈️ MONITORING (LIVE)", "🗺️ MAPA TRAS", "🗓️ GRAFIK FLOTY", "➕ NOWE ZLECENIE", "📋 BAZA DANYCH"])
 
-# --- TAB 1: MONITORING (LIVE) ---
+# --- TAB 1: MONITORING (LIVE) Z WBUDOWANĄ EDYCJĄ ---
 with tabs[0]:
     if not view_df.empty:
-        col1, col2, col3 = st.columns(3)
-        col1.metric("WSZYSTKIE ZLECENIA", len(view_df))
-        col2.metric("W REALIZACJI", len([s for s in view_df.apply(get_status, axis=1) if s == "W REALIZACJI"]))
-        col3.metric("ZAKOŃCZONE", len([s for s in view_df.apply(get_status, axis=1) if s == "ZAKOŃCZONY"]))
+        # CUSTOMOWE PODSUMOWANIA (Zastępują nudne st.metric)
+        total_count = len(view_df)
+        active_count = len([s for s in view_df.apply(get_status, axis=1) if s == "W REALIZACJI"])
+        done_count = len([s for s in view_df.apply(get_status, axis=1) if s == "ZAKOŃCZONY"])
         
+        html_kpi = f"""
+        <div class="kpi-wrapper">
+            <div class="kpi-card" style="border-top-color: #001a70;">
+                <div class="kpi-label">WSZYSTKIE ZLECENIA</div>
+                <div class="kpi-val">{total_count}</div>
+            </div>
+            <div class="kpi-card" style="border-top-color: #ffb612;">
+                <div class="kpi-label">W REALIZACJI</div>
+                <div class="kpi-val" style="color: #d97706;">{active_count}</div>
+            </div>
+            <div class="kpi-card" style="border-top-color: #10b981;">
+                <div class="kpi-label">ZAKOŃCZONE</div>
+                <div class="kpi-val" style="color: #059669;">{done_count}</div>
+            </div>
+        </div>
+        """
+        st.markdown(html_kpi, unsafe_allow_html=True)
+        
+        # PĘTLA ZLECEŃ
         for index, row in view_df.iterrows():
             status = get_status(row)
             typ_trans = fmt(row.get('Typ Transportu'))
@@ -269,6 +354,7 @@ with tabs[0]:
             if roz_dates:
                 extra_roz_html = f"<div><span class='bp-label'>DODATKOWE ROZŁADUNKI</span><span class='bp-val'>{' | '.join(roz_dates)}</span></div>"
 
+            # 1. GENEROWANIE KARTY HTML
             html_card = (
                 f'<div class="bp-card">'
                 f'<div class="bp-header"><div class="bp-logo">🚛 eventySQM</div><div class="bp-flight">{awb_text}AUTO: {fmt(row["Dane Auta"])}</div></div>'
@@ -281,13 +367,14 @@ with tabs[0]:
                 f'<div><span class="bp-label">TYP TRANSPORTU</span><span class="bp-val">{typ_trans}</span></div>'
                 f'{extra_roz_html}'
                 f'<div><span class="bp-label">KWOTA</span><span class="bp-val">{fmt(row.get("Kwota"))}</span></div>'
-                f'</div><div class="bp-barcode">*{safe_barcode}*</div>'
+                f'</div><div class="bp-barcode">*{safe_barcode}*</div></div></div>'
             )
             st.markdown(html_card, unsafe_allow_html=True)
             
             if pd.notnull(row.get('Notatka')) and row['Notatka'] != "":
-                st.markdown(f'<div class="ssr-remarks"><b>UWAGI OPERACYJNE:</b> {row["Notatka"]}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="ssr-remarks" style="margin-top:-10px; margin-bottom:15px;"><b>UWAGI OPERACYJNE:</b> {row["Notatka"]}</div>', unsafe_allow_html=True)
             
+            # 2. GENEROWANIE WYKRESU GANTTA
             single_gantt_df = []
             for stage, start_col, end_col, color in STAGES_DEF:
                 s_date = row.get(start_col); e_date = row.get(end_col)
@@ -302,10 +389,78 @@ with tabs[0]:
                 fig = px.timeline(pd.DataFrame(single_gantt_df), x_start="Start", x_end="Finish", y="Projekt", color="Etap", template="plotly_white", color_discrete_map={s[0]: s[3] for s in STAGES_DEF})
                 fig.add_vline(x=datetime.now().timestamp() * 1000, line_dash="solid", line_width=2, line_color="#ef4444") 
                 fig.update_xaxes(dtick="D1", tickformat="%d.%m", side="top", showgrid=True, gridcolor='#e5e7eb')
-                fig.update_layout(height=170, margin=dict(t=30, b=0, l=0, r=0), showlegend=True, yaxis={'visible': False}, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                fig.update_layout(height=170, margin=dict(t=10, b=10, l=0, r=0), showlegend=True, yaxis={'visible': False}, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig, use_container_width=True, key=f"gantt_{index}")
-                
-            st.markdown('</div></div>', unsafe_allow_html=True)
+            
+            # 3. WBUDOWANA EDYCJA DLA TEGO ZLECENIA
+            with st.expander(f"⚙️ ZARZĄDZAJ TYM ZLECENIEM (Kliknij, aby rozwinąć)"):
+                with st.form(f"edit_form_{index}"):
+                    c1, c2, c3 = st.columns(3)
+                    e_nz = c1.text_input("Numer zlecenia", row.get('Numer Zlecenia', ''), key=f"e_nz_{index}")
+                    e_nt = c2.text_input("Nazwa Targów", row['Nazwa Targów'], key=f"e_nt_{index}")
+                    
+                    if st.session_state["role"] == "admin": 
+                        e_przew = c3.text_input("Przewoźnik", row.get('Przewoźnik', ''), key=f"e_przew_{index}")
+                    else: 
+                        e_przew = st.session_state["carrier_name"]
+                        c3.text_input("Przewoźnik", value=e_przew, disabled=True, key=f"e_przew_{index}")
+                    
+                    e_da = c1.text_input("Dane Auta", row['Dane Auta'], key=f"e_da_{index}")
+                    e_ki = c2.text_input("Kierowca", row.get('Kierowca', ''), key=f"e_ki_{index}")
+                    e_te = c3.text_input("Telefon", row.get('Telefon', ''), key=f"e_te_{index}")
+                    
+                    c4, c5 = st.columns(2)
+                    e_kw = c4.text_input("Kwota", row.get('Kwota', ''), key=f"e_kw_{index}")
+                    
+                    options = ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"]
+                    try: curr_idx = options.index(row.get('Typ Transportu'))
+                    except ValueError: curr_idx = 0
+                    
+                    e_typ = c5.selectbox("Typ transportu", options, index=curr_idx, key=f"e_typ_{index}")
+                    e_no = st.text_area("Notatka", row.get('Notatka', ''), key=f"e_no_{index}")
+                    
+                    st.divider()
+                    st.markdown("### 🗓️ HARMONOGRAM ROZŁADUNKÓW (FORMAT RRRR-MM-DD)")
+                    ce1, ce2 = st.columns(2)
+                    ed_zal = ce1.text_input("Załadunek SQM", value=fmt_d(row.get('Data Załadunku')), key=f"ed_zal_{index}")
+                    ed_roz_m = ce2.text_input("Rozładunek 1 (Główny)", value=fmt_d(row.get('Rozładunek Montaż')), key=f"ed_roz_{index}")
+                    
+                    ce2a, ce2b = st.columns(2)
+                    ed_roz_m2 = ce2a.text_input("Rozładunek 2", value=fmt_d(row.get('Rozładunek Montaż 2')), key=f"ed_roz2_{index}")
+                    ed_roz_m3 = ce2b.text_input("Rozładunek 3", value=fmt_d(row.get('Rozładunek Montaż 3')), key=f"ed_roz3_{index}")
+                    
+                    st.divider()
+                    st.markdown("### 🗓️ HARMONOGRAM POWROTÓW / EMPTIES")
+                    ce3, ce4 = st.columns(2)
+                    ed_wj_e = ce3.text_input("Wjazd po Empties", value=fmt_d(row.get('Wjazd po Empties')), key=f"ed_wje_{index}")
+                    ed_do_e = ce4.text_input("Dostawa Empties", value=fmt_d(row.get('Dostawa Empties')), key=f"ed_doe_{index}")
+                    ce5, ce6 = st.columns(2)
+                    ed_od_p = ce5.text_input("Odbiór Pełnych", value=fmt_d(row.get('Odbiór Pełnych')), key=f"ed_odp_{index}")
+                    ed_ro_p = ce6.text_input("Rozładunek SQM (powrót)", value=fmt_d(row.get('Rozładunek Powrotny')), key=f"ed_rop_{index}")
+
+                    if st.form_submit_button("ZAPISZ ZMIANY W ZLECENIU"):
+                        full_df.loc[index, ["Numer Zlecenia", "Nazwa Targów", "Przewoźnik", "Kwota", "Dane Auta", "Kierowca", "Telefon", "Typ Transportu", "Notatka"]] = [e_nz, e_nt, e_przew, e_kw, e_da, e_ki, e_te, e_typ, e_no]
+                        
+                        parsed_zal = parse_date_input(ed_zal)
+                        parsed_roz = parse_date_input(ed_roz_m)
+                        parsed_odp = parse_date_input(ed_od_p)
+                        parsed_rop = parse_date_input(ed_ro_p)
+                        parsed_wje = parse_date_input(ed_wj_e)
+                        parsed_doe = parse_date_input(ed_do_e)
+                        parsed_roz2 = parse_date_input(ed_roz_m2)
+                        parsed_roz3 = parse_date_input(ed_roz_m3)
+                        
+                        full_df.loc[index, ["Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = [parsed_zal, parsed_zal, parsed_roz, parsed_odp, parsed_odp, parsed_rop]
+                        full_df.loc[index, ["Wjazd po Empties", "Dostawa Empties"]] = [parsed_wje, parsed_doe]
+                        full_df.loc[index, ["Rozładunek Montaż 2", "Rozładunek Montaż 3"]] = [parsed_roz2, parsed_roz3]
+
+                        if e_typ == "Dostawa i Powrót (bez postoju)": full_df.loc[index, ["Wjazd po Empties", "Dostawa Empties"]] = None
+                        elif e_typ == "Tylko Dostawa": full_df.loc[index, ["Wjazd po Empties", "Dostawa Empties", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = None
+                        
+                        conn.update(worksheet="VECTURA", data=full_df[REQUIRED_COLS])
+                        st.success("Aktualizacja zakończona pomyślnie.")
+                        time.sleep(1)
+                        st.rerun()
     else:
         st.info("Brak aktywnych zleceń na tablicy.")
 
@@ -433,82 +588,12 @@ with tabs[3]:
                 conn.update(worksheet="VECTURA", data=combined)
                 st.success("Zlecenie dodane!"); time.sleep(1); st.rerun()
 
-# --- TAB 5: EDYCJA ---
-with tabs[4]:
-    if not view_df.empty:
-        view_df['key'] = view_df['Nazwa Targów'].astype(str) + " | " + view_df['Dane Auta'].astype(str)
-        sel = st.selectbox("Wybierz zlecenie do aktualizacji:", view_df['key'].unique())
-        
-        full_df['key'] = full_df['Nazwa Targów'].astype(str) + " | " + full_df['Dane Auta'].astype(str)
-        real_idx = full_df[full_df['key'] == sel].index[0]
-        r = full_df.loc[real_idx]
-        
-        with st.form("edit_form"):
-            c1, c2, c3 = st.columns(3)
-            e_nz = c1.text_input("Numer zlecenia (opcjonalnie)", r.get('Numer Zlecenia', ''))
-            e_nt = c2.text_input("Nazwa Targów", r['Nazwa Targów'])
-            if st.session_state["role"] == "admin": e_przew = c3.text_input("Przewoźnik", r['Przewoźnik'])
-            else: e_przew = st.session_state["carrier_name"]; c3.text_input("Przewoźnik", value=e_przew, disabled=True)
-            
-            e_da = c1.text_input("Dane Auta", r['Dane Auta'])
-            e_ki = c2.text_input("Kierowca", r['Kierowca'])
-            e_te = c3.text_input("Telefon", r['Telefon'])
-            
-            c4, c5 = st.columns(2)
-            e_kw = c4.text_input("Kwota", r['Kwota'])
-            e_typ = c5.selectbox("Typ transportu", ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"], 
-                                 index=["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"].index(r['Typ Transportu']) if r['Typ Transportu'] in ["Pełny Cykl (z postojem)", "Tylko Dostawa", "Dostawa i Powrót (bez postoju)"] else 0)
-            e_no = st.text_area("Notatka", r['Notatka'])
-            
-            def fmt_d(v): return v.strftime('%Y-%m-%d') if pd.notnull(v) else ""
-            
-            st.divider()
-            st.markdown("### 🗓️ HARMONOGRAM ROZŁADUNKÓW (FORMAT RRRR-MM-DD)")
-            ce1, ce2 = st.columns(2)
-            ed_zal = ce1.text_input("Załadunek SQM", value=fmt_d(r.get('Data Załadunku')))
-            ed_roz_m = ce2.text_input("Rozładunek 1 (Główny)", value=fmt_d(r.get('Rozładunek Montaż')))
-            
-            ce2a, ce2b = st.columns(2)
-            ed_roz_m2 = ce2a.text_input("Rozładunek 2 (Opcjonalnie)", value=fmt_d(r.get('Rozładunek Montaż 2')))
-            ed_roz_m3 = ce2b.text_input("Rozładunek 3 (Opcjonalnie)", value=fmt_d(r.get('Rozładunek Montaż 3')))
-            
-            st.divider()
-            st.markdown("### 🗓️ HARMONOGRAM POWROTÓW / EMPTIES")
-            ce3, ce4 = st.columns(2)
-            ed_wj_e = ce3.text_input("Wjazd po Empties", value=fmt_d(r.get('Wjazd po Empties')))
-            ed_do_e = ce4.text_input("Dostawa Empties", value=fmt_d(r.get('Dostawa Empties')))
-            ce5, ce6 = st.columns(2)
-            ed_od_p = ce5.text_input("Odbiór Pełnych", value=fmt_d(r.get('Odbiór Pełnych')))
-            ed_ro_p = ce6.text_input("Rozładunek SQM (powrót)", value=fmt_d(r.get('Rozładunek Powrotny')))
+# --- TAB 4/5: BAZA ---
+with tabs[4]: st.dataframe(view_df[REQUIRED_COLS], use_container_width=True)
 
-            if st.form_submit_button("ZAPISZ KOREKTĘ"):
-                full_df.loc[real_idx, ["Numer Zlecenia", "Nazwa Targów", "Przewoźnik", "Kwota", "Dane Auta", "Kierowca", "Telefon", "Typ Transportu", "Notatka"]] = [e_nz, e_nt, e_przew, e_kw, e_da, e_ki, e_te, e_typ, e_no]
-                
-                parsed_zal = parse_date_input(ed_zal)
-                parsed_roz = parse_date_input(ed_roz_m)
-                parsed_odp = parse_date_input(ed_od_p)
-                parsed_rop = parse_date_input(ed_ro_p)
-                parsed_wje = parse_date_input(ed_wj_e)
-                parsed_doe = parse_date_input(ed_do_e)
-                parsed_roz2 = parse_date_input(ed_roz_m2)
-                parsed_roz3 = parse_date_input(ed_roz_m3)
-                
-                full_df.loc[real_idx, ["Data Załadunku", "Trasa Start", "Rozładunek Montaż", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = [parsed_zal, parsed_zal, parsed_roz, parsed_odp, parsed_odp, parsed_rop]
-                full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties"]] = [parsed_wje, parsed_doe]
-                full_df.loc[real_idx, ["Rozładunek Montaż 2", "Rozładunek Montaż 3"]] = [parsed_roz2, parsed_roz3]
-
-                if e_typ == "Dostawa i Powrót (bez postoju)": full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties"]] = None
-                elif e_typ == "Tylko Dostawa": full_df.loc[real_idx, ["Wjazd po Empties", "Dostawa Empties", "Odbiór Pełnych", "Trasa Powrót", "Rozładunek Powrotny"]] = None
-                
-                conn.update(worksheet="VECTURA", data=full_df[REQUIRED_COLS])
-                st.success("Zaktualizowano w bazie."); time.sleep(1); st.rerun()
-
-# --- TAB 6: BAZA ---
-with tabs[5]: st.dataframe(view_df[REQUIRED_COLS], use_container_width=True)
-
-# --- TAB 7: USUŃ ---
+# --- TAB 5/6: USUŃ ---
 if st.session_state["role"] == "admin":
-    with tabs[6]:
+    with tabs[5]:
         if not full_df.empty:
             full_df['key'] = full_df['Nazwa Targów'].astype(str) + " | " + full_df['Dane Auta'].astype(str)
             target = st.selectbox("Usuń zlecenie:", full_df['key'].unique(), key="del_sel")

@@ -298,7 +298,7 @@ div[data-baseweb="input"], div[data-baseweb="select"], textarea {{
     font-weight: 700;
 }}
 
-.order-body {{ padding: 13px 15px 10px 15px; }}
+.order-body {{ padding: 13px 15px 10px 15px; display: block; }}
 
 .order-main {{
     display: flex;
@@ -346,12 +346,18 @@ div[data-baseweb="input"], div[data-baseweb="select"], textarea {{
 
 .order-info-grid {{
     display: grid;
+    width: 100%;
     grid-template-columns: repeat(5, minmax(0,1fr));
     gap: 14px;
     padding: 11px 0 4px 0;
 }}
 
+.order-info-item {{ display: block; min-width: 0; }}
+
+.order-destination-wrap {{ display: block; }}
+
 .order-value {{
+    display: block;
     font-size: 12px;
     color: {TEXT};
     font-weight: 700;
@@ -359,6 +365,7 @@ div[data-baseweb="input"], div[data-baseweb="select"], textarea {{
 }}
 
 .note {{
+    display: block;
     margin-top: 8px;
     background: #FFFBEB;
     border-left: 3px solid {YELLOW};
@@ -627,6 +634,8 @@ if not password_check():
     st.stop()
 
 full_df = load_data()
+if not full_df.empty:
+    st.session_state.pop("load_error", None)
 
 if st.session_state.get("role") == "admin":
     view_df = full_df.copy()
@@ -875,11 +884,7 @@ def edit_order_dialog(row_index):
 
         st.caption("Format dat: RRRR-MM-DD. Puste pole usuwa datę.")
 
-        save_col, close_col = st.columns([1, 1])
-        with save_col:
-            save = st.button("ZAPISZ ZMIANY", type="primary", use_container_width=True)
-        with close_col:
-            st.button("ZAMKNIJ", use_container_width=True)
+        save = st.button("ZAPISZ ZMIANY", type="primary", use_container_width=True)
 
         if save:
             if not e_nt.strip() or not e_da.strip() or not e_przew.strip():
@@ -1046,31 +1051,31 @@ with tabs[0]:
                 ("KWOTA", fmt(row.get("Kwota")) or "—"),
             ]
             info_html = "".join(
-                f'<div><span class="order-label">{label}</span><div class="order-value">{safe_html(value)}</div></div>'
+                f'<span class="order-info-item"><span class="order-label">{label}</span><span class="order-value">{safe_html(value)}</span></span>'
                 for label, value in info
             )
 
             note = fmt(row.get("Notatka"))
-            note_html = f'<div class="note"><b>UWAGA:</b> {safe_html(note)}</div>' if note else ""
+            note_html = f'<span class="note"><b>UWAGA:</b> {safe_html(note)}</span>' if note else ""
 
             st.markdown(
                 f"""
                 <div class="order-card">
-                    <div class="order-head">
-                        <div class="order-ref">AWB / REF · {safe_html(num_zlec)}</div>
-                        <div class="order-auto">AUTO · {safe_html(auto)}</div>
-                    </div>
-                    <div class="order-body">
-                        <div class="order-main">
-                            <div>
+                    <span class="order-head">
+                        <span class="order-ref">AWB / REF · {safe_html(num_zlec)}</span>
+                        <span class="order-auto">AUTO · {safe_html(auto)}</span>
+                    </span>
+                    <span class="order-body">
+                        <span class="order-main">
+                            <span class="order-destination-wrap">
                                 <span class="order-label">CEL / NAZWA TARGÓW</span>
-                                <div class="order-destination">{destination}</div>
-                            </div>
-                            <div class="status-badge {status_cls}">{status_ic} {safe_html(status)}</div>
-                        </div>
-                        <div class="order-info-grid">{info_html}</div>
+                                <span class="order-destination">{destination}</span>
+                            </span>
+                            <span class="status-badge {status_cls}">{status_ic} {safe_html(status)}</span>
+                        </span>
+                        <span class="order-info-grid">{info_html}</span>
                         {note_html}
-                    </div>
+                    </span>
                 </div>
                 """,
                 unsafe_allow_html=True,
